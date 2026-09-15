@@ -37,6 +37,27 @@ if hint is not None:
 log.info("board_state", board=render_board(board))
 ```
 
+## Running tests
+
+Run these commands from the repository root, after `uv sync`:
+
+```sh
+# Run the complete test suite
+uv run pytest
+
+# Run every test in one file
+uv run pytest tests/test_known_games.py
+
+# Run one specific test function
+uv run pytest tests/test_known_games.py::test_known_game_001_next_hint_l6c5
+
+# Show board/deduction logs live (-s) and individual test names (-v)
+uv run pytest -s -v tests/test_known_games.py::test_known_game_001_logical_replay
+```
+
+The `::` separator selects a function within a test file. Add `-s -v` to
+any of these commands to inspect the debug output while tests run.
+
 ## Architecture and public APIs
 
 - `board.py`: `Cell`, `CellState`, string `RegionId`, `GroupKind`, `Group`,
