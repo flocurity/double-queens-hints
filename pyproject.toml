@@ -1,0 +1,15 @@
+[project]
+name = "double-queens"
+version = "0.1.0"
+description = "Explainable elementary hints for Double Queens"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
