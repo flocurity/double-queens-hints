@@ -116,7 +116,7 @@ def render_board(
         multiplier = "×" if use_emojis else "x"
         summary = "  ".join(symbol(region) + (f" {multiplier}{count}" if count > 1 else "")
                             for region, count in sorted(counts.items())) or ("—" if use_emojis else "-")
-        table.append([f"**Line {r + 1:02d}**", *row, summary])
+        table.append([f"Line {r + 1:02d}", *row, summary])
     widths = [max(5, *(layout.width(row[c]) for row in table))
               for c in range(board.size + 2)]
 

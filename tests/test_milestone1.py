@@ -210,7 +210,7 @@ def test_debug_board_dynamic_and_pure():
     board = board_with([(0, 0, Q), (0, 3, Q), (1, 0, X)], size=13)
     before = board.state
     rendered = render_board(board, use_emojis=True)
-    assert "Col 13" in rendered and "**Line 13**" in rendered
+    assert "Col 13" in rendered and "Line 13" in rendered
     assert rendered.splitlines()[0].split("|")[1].strip() == "Line / Col"
     assert "Color Region Legend" not in rendered
     assert not any(line.startswith("- ") for line in rendered.splitlines())
@@ -282,7 +282,7 @@ def test_apply_out_of_bounds_and_conflicting_batch_roll_back():
 def test_debug_queen_summary_tracks_different_regions():
     regions = [[str(c) for c in range(8)] for _ in range(8)]
     board = board_with([(0, 0, Q), (0, 3, Q)], regions=regions)
-    line = next(line for line in render_board(board, use_emojis=True).splitlines() if '**Line 01**' in line)
+    line = next(line for line in render_board(board, use_emojis=True).splitlines() if 'Line 01' in line)
     assert line.split('|')[-2].strip() == '🔴  🟡'
 
 

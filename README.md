@@ -2,6 +2,19 @@
 
 Milestone 1: elementary, explainable Python hints. No runtime dependencies.
 
+## Origin: the L6C5 incident
+
+This project began with a real Double Queens game in which the green region
+logically forced a queen at L6C5. An AI assistant named GPTou initially failed
+to identify that deduction reliably. The queen was forced; the explanation
+apparently needed more structure.
+
+That incident established the project's main design goal: logical hints must
+be deterministic, structured, explainable, replayable, and regression tested,
+rather than produced by opaque solving behavior. The original position is
+preserved as `known_game_001` in [tests/test_known_games.py](tests/test_known_games.py),
+where placing a queen at L6C5 is an explicit regression test.
+
 ## Run
 
 ```sh
@@ -18,10 +31,10 @@ state[0][0] = CellState.QUEEN
 board = Board(regions, state)
 hint = next_hint(board)
 if hint is not None:
-    print(render_hint(hint, level=1))
-    print(render_hint(hint, level=4))
+    log.info(render_hint(hint, level=1))
+    log.info(render_hint(hint, level=4))
     board.apply(hint)
-print(render_board(board))
+log.info("board_state", board=render_board(board))
 ```
 
 ## Architecture and public APIs

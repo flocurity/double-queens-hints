@@ -4,6 +4,9 @@ import pytest
 from debug_boards import debug_boards
 from double_queens import Board, Cell, CellState, render_board
 from double_queens.hints import debug
+from double_queens.log import get_logger
+
+log = get_logger(__name__)
 
 
 def observed_width(text: str) -> int:
@@ -35,7 +38,7 @@ def test_mixed_glyphs_align_in_terminal(monkeypatch, palette):
     before = board.state
     rendered = render_board(board, use_emojis=True, terminal_profile='unicode',
                             glyph_widths={'👩\u200d💻': 2})
-    print('\nMixed region glyphs:\n' + rendered)
+    log.info('Mixed region glyphs:', board=rendered)
     lines = rendered.splitlines()
     expected_columns = pipe_columns(lines[0])
     assert len(expected_columns) == 7
@@ -59,7 +62,7 @@ def test_row_numbers_are_padded_without_changing_cell_coordinates():
     rendered = render_board(board, use_emojis=False)
     lines = rendered.splitlines()
     assert [line.split('|')[1].strip() for line in lines[2:]] == [
-        f'**Line {r:02d}**' for r in range(1, 13)
+        f'Line {r:02d}' for r in range(1, 13)
     ]
     assert all(pipe_columns(line) == pipe_columns(lines[0]) for line in lines)
     assert str(Cell(5, 4)) == 'L6C5'
@@ -74,7 +77,7 @@ def test_vscode_padding_uses_calibrated_widths(monkeypatch, white_width):
     monkeypatch.setenv('TERM_PROGRAM', 'vscode')
     board = Board([list('ABCDEF')] * 6)
     rendered = render_board(board, use_emojis=True, glyph_widths={'🤍': white_width})
-    print('\nVS Code calibrated region cells:\n' + rendered)
+    log.info('VS Code calibrated region cells:', board=rendered)
     # Six content columns have width five, plus one space on each side.
     cells = rendered.splitlines()[2].split('|')[2:-2]
     expected_widths = (2, 2, 2, white_width, 1, 1)

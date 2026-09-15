@@ -5,6 +5,9 @@ from typing import ParamSpec, TypeVar
 from unittest.mock import patch
 
 from double_queens import Board, Deduction, render_board, render_deduction
+from double_queens.log import get_logger
+
+log = get_logger(__name__)
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -29,43 +32,44 @@ def debug_boards(test: Callable[P, R]) -> Callable[P, R]:
             if index is None:
                 boards.append(board)
                 index = len(boards)
-            print(f"\n### Board {index}: {event}\n")
-            print(render_board(board))
-
+            log.info(f"board {index} {event}", index=index, board=render_board(board))
         @wraps(original_init)
         def traced_init(board: Board, *init_args, **init_kwargs) -> None:
             try:
                 original_init(board, *init_args, **init_kwargs)
             except Exception as error:
-                print(f"\nBoard construction rejected: {type(error).__name__}: {error}")
+                log.error("board construction rejected", error_type=type(error).__name__, error=str(error))
                 raise
             if not applying:
                 show(board, "created")
 
         def traced_post_init(deduction: Deduction) -> None:
             original_post_init(deduction)
-            print("\n### Deduction created\n")
-            print(render_deduction(deduction))
+            log.info("deduction created", deduction=render_deduction(deduction))
 
         def traced_apply(board: Board, deduction: Deduction) -> None:
             nonlocal applying
             show(board, "before application")
-            print(render_deduction(deduction))
+            # remove redundant log: if it is used it has been created before
+            #log.info("deduction used", deduction=render_deduction(deduction))
             applying = True
+            board_before = render_board(board)
             try:
                 original_apply(board, deduction)
             except Exception as error:
-                print(f"\nApplication rejected: {type(error).__name__}: {error}")
-                show(board, "after rejected application")
+                log.warning("application rejected", error_type=type(error).__name__, error=str(error))
+                assert board_before == render_board(board), ("Board was mutated by a rejected deduction")
                 raise
             else:
                 show(board, "after application")
             finally:
                 applying = False
 
-        print(f"\n## {test.__name__}")
+        # Pytest may leave its progress marker on the current line, jump one line
+        log.blank()
+        log.info("test started", test=test.__name__)
         if args or kwargs:
-            print(f"Parameters: {args!r} {kwargs!r}")
+            log.debug("parameters", args=args, kwargs=kwargs)
         with patch.object(Board, "__init__", traced_init), \
              patch.object(Board, "apply", traced_apply), \
              patch.object(Deduction, "__post_init__", traced_post_init):

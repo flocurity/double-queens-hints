@@ -1,12 +1,12 @@
 # Double Queens — Logical Hint Engine
 
-## 1. Goal
+# 1. Goal
 
 Build a Python engine for a variant of the Queens puzzle.
 
 The primary goal is NOT to build a brute-force solver.
 
-The primary goal is to build an **explainable logical deduction engine** that can inspect a partially completed board and find the next deduction that a human player could logically make.
+The primary goal is to build an explainable logical deduction engine that can inspect a partially completed board and find the next deduction that a human player could logically make.
 
 The same engine MAY later be used as a solver simply by repeatedly:
 
@@ -1011,18 +1011,18 @@ Color Region Legend
 
 | Line / Col | Col 1 | Col 2 | Col 3 | Col 4 | Col 5 | Col 6 | Col 7 | Col 8 | Col 9 | Col 10 | Col 11 | Col 12 |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Line 1**  | 👑 `[R]` | ❌ `[R]` | ❌ `[B]` | ❌ `[B]` | ❌ `[B]` | ❌ `[V]` | ❌ `[V]` | ❌ `[V]` | ❌ `[J]` | ❌ `[J]` | ❌ `[J]` | ❌ `[J]` |
-| **Line 2**  | ❌ `[R]` | ❌ `[B]` | ❌ `[B]` | 🔵 `[B]` | 🔵 `[B]` | 🟢 `[V]` | 🟢 `[V]` | 🟢 `[V]` | 🟡 `[J]` | 🟡 `[J]` | 🟡 `[J]` | 🟡 `[J]` |
-| **Line 3**  | ❌ `[P]` | 👑 `[P]` | ❌ `[P]` | ❌ `[B]` | 🔵 `[B]` | 🟢 `[V]` | 🟢 `[V]` | 🟢 `[V]` | 🟡 `[J]` | 🟡 `[J]` | 🟡 `[J]` | 🟡 `[J]` |
-| **Line 4**  | ❌ `[O]` | ❌ `[P]` | ❌ `[P]` | ❌ `[P]` | 🟠 `[O]` | 🟠 `[O]` | 🟠 `[O]` | 🟠 `[O]` | 🟡 `[J]` | 🟡 `[J]` | 🟡 `[J]` | 🟡 `[J]` |
-| **Line 5**  | ❌ `[M]` | ❌ `[M]` | 🟤 `[M]` | 🟤 `[M]` | 🟤 `[M]` | 👑 `[G]` | ❌ `[G]` | ❌ `[G]` | ❌ `[N]` | ❌ `[N]` | ❌ `[N]` | ❌ `[N]` |
-| **Line 6**  | ❌ `[M]` | ❌ `[M]` | 🟤 `[M]` | 🟤 `[M]` | ❌ `[G]` | ❌ `[G]` | ❌ `[G]` | 🩶 `[G]` | ⚫ `[N]` | ⚫ `[N]` | ⚫ `[N]` | ⚫ `[N]` |
-| **Line 7**  | ❌ `[M]` | ❌ `[M]` | 🟤 `[M]` | 🟤 `[M]` | 🟤 `[M]` | ❌ `[G]` | 🩶 `[G]` | 🩶 `[G]` | ⚫ `[N]` | ⚫ `[N]` | ⚫ `[N]` | ⚫ `[N]` |
-| **Line 8**  | ❌ `[W]` | ❌ `[W]` | ⚪ `[W]` | ⚪ `[W]` | ⚪ `[W]` | ❌ `[G]` | ⚪ `[W]` | 👑 `[N]` | ❌ `[N]` | ❌ `[N]` | ❌ `[N]` | ❌ `[N]` |
-| **Line 9**  | ❌ `[W]` | ❌ `[W]` | ⚪ `[W]` | ⚪ `[W]` | ⚪ `[W]` | ❌ `[W]` | ❌ `[N]` | ❌ `[N]` | ❌ `[N]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` |
-| **Line 10** | ❌ `[I]` | ❌ `[I]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` | ❌ `[I]` | 🩵 `[I]` | ❌ `[N]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` |
-| **Line 11** | ❌ `[I]` | ❌ `[I]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` | ❌ `[I]` | 🩵 `[I]` | ❌ `[N]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` |
-| **Line 12** | ❌ `[I]` | ❌ `[I]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` | ❌ `[I]` | 🩵 `[I]` | ❌ `[N]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` |
+| Line 01  | 👑 `[R]` | ❌ `[R]` | ❌ `[B]` | ❌ `[B]` | ❌ `[B]` | ❌ `[V]` | ❌ `[V]` | ❌ `[V]` | ❌ `[J]` | ❌ `[J]` | ❌ `[J]` | ❌ `[J]` |
+| Line 02  | ❌ `[R]` | ❌ `[B]` | ❌ `[B]` | 🔵 `[B]` | 🔵 `[B]` | 🟢 `[V]` | 🟢 `[V]` | 🟢 `[V]` | 🟡 `[J]` | 🟡 `[J]` | 🟡 `[J]` | 🟡 `[J]` |
+| Line 03  | ❌ `[P]` | 👑 `[P]` | ❌ `[P]` | ❌ `[B]` | 🔵 `[B]` | 🟢 `[V]` | 🟢 `[V]` | 🟢 `[V]` | 🟡 `[J]` | 🟡 `[J]` | 🟡 `[J]` | 🟡 `[J]` |
+| Line 04  | ❌ `[O]` | ❌ `[P]` | ❌ `[P]` | ❌ `[P]` | 🟠 `[O]` | 🟠 `[O]` | 🟠 `[O]` | 🟠 `[O]` | 🟡 `[J]` | 🟡 `[J]` | 🟡 `[J]` | 🟡 `[J]` |
+| Line 05  | ❌ `[M]` | ❌ `[M]` | 🟤 `[M]` | 🟤 `[M]` | 🟤 `[M]` | 👑 `[G]` | ❌ `[G]` | ❌ `[G]` | ❌ `[N]` | ❌ `[N]` | ❌ `[N]` | ❌ `[N]` |
+| Line 06  | ❌ `[M]` | ❌ `[M]` | 🟤 `[M]` | 🟤 `[M]` | ❌ `[G]` | ❌ `[G]` | ❌ `[G]` | 🩶 `[G]` | ⚫ `[N]` | ⚫ `[N]` | ⚫ `[N]` | ⚫ `[N]` |
+| Line 07  | ❌ `[M]` | ❌ `[M]` | 🟤 `[M]` | 🟤 `[M]` | 🟤 `[M]` | ❌ `[G]` | 🩶 `[G]` | 🩶 `[G]` | ⚫ `[N]` | ⚫ `[N]` | ⚫ `[N]` | ⚫ `[N]` |
+| Line 08  | ❌ `[W]` | ❌ `[W]` | ⚪ `[W]` | ⚪ `[W]` | ⚪ `[W]` | ❌ `[G]` | ⚪ `[W]` | 👑 `[N]` | ❌ `[N]` | ❌ `[N]` | ❌ `[N]` | ❌ `[N]` |
+| Line 09  | ❌ `[W]` | ❌ `[W]` | ⚪ `[W]` | ⚪ `[W]` | ⚪ `[W]` | ❌ `[W]` | ❌ `[N]` | ❌ `[N]` | ❌ `[N]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` |
+| Line 10 | ❌ `[I]` | ❌ `[I]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` | ❌ `[I]` | 🩵 `[I]` | ❌ `[N]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` |
+| Line 11 | ❌ `[I]` | ❌ `[I]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` | ❌ `[I]` | 🩵 `[I]` | ❌ `[N]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` |
+| Line 12 | ❌ `[I]` | ❌ `[I]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` | ❌ `[I]` | 🩵 `[I]` | ❌ `[N]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` | 🩵 `[I]` |
 ```
 
 ### Rendering semantics
@@ -1137,10 +1137,10 @@ Example:
 ```markdown
 | Line / Col | Col 1 | ... | Col 12 | Queen Region(s) |
 | :--- | :---: | ... | :---: | :---: |
-| **Line 1** | 👑 `[R]` | ... | ❌ `[J]` | 🔴 `[R]` |
-| **Line 2** | ❌ `[R]` | ... | 🟡 `[J]` | — |
-| **Line 3** | ❌ `[P]` | ... | 🟡 `[J]` | 🟣 `[P]` |
-| **Line 5** | ❌ `[M]` | ... | ❌ `[N]` | 🩶 `[G]` |
+| Line 1 | 👑 `[R]` | ... | ❌ `[J]` | 🔴 `[R]` |
+| Line 2 | ❌ `[R]` | ... | 🟡 `[J]` | — |
+| Line 3 | ❌ `[P]` | ... | 🟡 `[J]` | 🟣 `[P]` |
+| Line 5 | ❌ `[M]` | ... | ❌ `[N]` | 🩶 `[G]` |
 ```
 
 If a row contains two confirmed queens from different regions, display both:
@@ -1182,7 +1182,7 @@ render_board(board) -> str
 Example:
 
 ```python
-print(render_board(board))
+log.info("board", board=render_board(board))
 ```
 
 should output the Markdown legend and grid.
@@ -1230,7 +1230,7 @@ during development.
 During development, it should be possible to execute:
 
 ```python
-print(render_board(board))
+log.info("board", board=render_board(board))
 ```
 
 and immediately inspect:
@@ -1778,7 +1778,7 @@ board = parse_screenshot("queens.png")
 
 hint = engine.next_hint(board)
 
-print(render_hint(hint, level=1))
+log.info("hint", hint=render_hint(hint, level=1))
 ```
 
 Example output:
@@ -1790,7 +1790,7 @@ Look at the green region.
 Then:
 
 ```python
-print(render_hint(hint, level=2))
+log.info("hint", hint=render_hint(hint, level=2))
 ```
 
 Example:
@@ -1803,7 +1803,7 @@ How many possible cells remain?
 Then:
 
 ```python
-print(render_hint(hint, level=3))
+log.info("hint", hint=render_hint(hint, level=3))
 ```
 
 Example:
@@ -1815,7 +1815,7 @@ Only L6C5 remains available for the second queen.
 And finally:
 
 ```python
-print(render_hint(hint, level=4))
+log.info("hint", hint=render_hint(hint, level=4))
 ```
 
 Example:

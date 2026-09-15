@@ -9,6 +9,9 @@ from double_queens import (
     Action, Board, Cell, CellFact, CellState, Deduction, GroupKind, Rule,
     best_deduction, find_deductions, next_hint, render_board, render_hint,
 )
+from double_queens.log import get_logger
+
+log = get_logger(__name__)
 
 U, Q, X = CellState.UNKNOWN, CellState.QUEEN, CellState.EXCLUDED
 
@@ -194,15 +197,16 @@ def test_render_irregular_board_without_legend(irregular_layout):
     before = board.state
     text = render_board(board, use_emojis=False)
     emojis = render_board(board, use_emojis=True)
-    print('\nRealistic irregular board:\n' + emojis)
+    log.info('Realistic irregular board:', board=emojis)
     assert 'Color Region Legend' not in text + emojis
-    rows = [line.split('|')[2:-2] for line in text.splitlines() if '**Line ' in line]
+    rows = [line.split('|')[2:-2] for line in text.splitlines() if 'Line ' in line
+            and not line.lstrip().startswith('| Line / Col')]
     assert len(rows) == 10 and all(len(row) == 10 for row in rows)
     for r in range(10):
         for c in range(10):
             prefix = 'Q ' if Cell(r, c) == queen else 'X ' if Cell(r, c) == excluded else ''
             assert rows[r][c].strip() == prefix + irregular_layout.regions[r][c]
     assert emojis.count('👑') == 1 and emojis.count('❌') == 1
-    queen_row = next(line for line in text.splitlines() if f'**Line {queen.row + 1:02d}**' in line)
+    queen_row = next(line for line in text.splitlines() if f'Line {queen.row + 1:02d}' in line)
     assert queen_row.split('|')[-2].strip() == 'A'
     assert board.state == before
