@@ -209,10 +209,13 @@ def test_hint_levels_and_debug(rule):
 def test_debug_board_dynamic_and_pure():
     board = board_with([(0, 0, Q), (0, 3, Q), (1, 0, X)], size=13)
     before = board.state
-    rendered = render_board(board)
-    assert "[R13]" in rendered and "Col 13" in rendered
+    rendered = render_board(board, use_emojis=True)
+    assert "Col 13" in rendered and "**Line 13**" in rendered
+    assert rendered.startswith("| Line / Col |")
+    assert "Color Region Legend" not in rendered
+    assert not any(line.startswith("- ") for line in rendered.splitlines())
     assert "Queen Region(s)" in rendered and "×2" in rendered
-    assert "👑 `[R1]`" in rendered and "❌" in rendered and "—" in rendered
+    assert "| 👑 |" in rendered and "❌" in rendered and "—" in rendered
     assert board.state == before
 
 
@@ -279,5 +282,44 @@ def test_apply_out_of_bounds_and_conflicting_batch_roll_back():
 def test_debug_queen_summary_tracks_different_regions():
     regions = [[str(c) for c in range(8)] for _ in range(8)]
     board = board_with([(0, 0, Q), (0, 3, Q)], regions=regions)
-    line = next(line for line in render_board(board).splitlines() if '**Line 1**' in line)
-    assert line.endswith('🔴 `[R1]`  🟡 `[R4]` |')
+    line = next(line for line in render_board(board, use_emojis=True).splitlines() if '**Line 1**' in line)
+    assert line.endswith('🔴  🟡 |')
+
+
+@debug_boards
+def test_debug_board_text_mode():
+    board = board_with([(0, 0, Q), (0, 3, Q), (1, 0, X)])
+    rendered = render_board(board, use_emojis=False)
+    assert rendered.isascii()
+    assert '| Q region_0 |' in rendered
+    assert '| X region_1 |' in rendered
+    assert '| region_2 |' in rendered
+    assert 'region_0 x2 |' in rendered
+
+
+@debug_boards
+def test_debug_board_emoji_cells_have_no_region_labels():
+    board = board_with([(0, 0, Q), (1, 0, X)])
+    rendered = render_board(board, use_emojis=True)
+    grid = rendered.split('| Line / Col |')[1]
+    assert 'region_' not in grid and '[R' not in grid
+    assert '| 👑 |' in grid and '| ❌ |' in grid and '| 🔴 |' in grid
+
+
+@pytest.mark.parametrize('encoding,term,expected', [
+    ('utf-8', 'xterm-256color', True), ('ascii', 'xterm', False),
+    ('utf-8', 'dumb', False), (None, 'xterm', False),
+    ('invalid-encoding', 'xterm', False),
+])
+@debug_boards
+def test_debug_board_terminal_detection(monkeypatch, encoding, term, expected):
+    from types import SimpleNamespace
+    from double_queens.hints import debug
+    board = board_with()
+    with monkeypatch.context() as patch:
+        patch.setattr(debug.sys, 'stdout', SimpleNamespace(encoding=encoding))
+        patch.setenv('TERM', term)
+        rendered = render_board(board)
+        forced = render_board(board, use_emojis=not expected)
+    assert ('🔴' in rendered) == expected
+    assert ('🔴' in forced) == (not expected)
