@@ -4,7 +4,7 @@ from functools import wraps
 from typing import ParamSpec, TypeVar
 from unittest.mock import patch
 
-from double_queens import Board, Deduction, render_board, render_deduction
+from double_queens import Board, Deduction, render_board, render_deduction, render_hint
 from double_queens.log import get_logger
 
 log = get_logger(__name__)
@@ -46,6 +46,8 @@ def debug_boards(test: Callable[P, R]) -> Callable[P, R]:
         def traced_post_init(deduction: Deduction) -> None:
             original_post_init(deduction)
             log.info("deduction created", deduction=render_deduction(deduction))
+            hints = [render_hint(deduction, level) for level in range(1, 5)]
+            log.hint(hints)
 
         def traced_apply(board: Board, deduction: Deduction) -> None:
             nonlocal applying

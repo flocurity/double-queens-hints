@@ -102,6 +102,18 @@ class ProjectLogger:
         """Write a blank line to the log output."""
         print(file=sys.stdout)
 
+    def hint(self, hint: str, *, level: int | None = None, **fields) -> None:
+        if level is not None:
+            fields["hint_level"] = level
+        else:
+            hint = '\n'.join(f"level {lvl}: {item}" for lvl, item in enumerate(hint, start=1))
+
+        self._logger.info(
+            "hint" + ("s" if level is None else ""),
+            **fields,
+            hint=hint,
+        )
+
     def __getattr__(self, name):
         return getattr(self._logger, name)
 

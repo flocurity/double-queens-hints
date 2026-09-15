@@ -89,3 +89,93 @@ Use `uv` for Python environment and dependency management.
 Follow the milestone boundaries defined in SPEC.md.
 
 Do not implement future milestones unless explicitly requested.
+
+## Logging
+
+Use the project logging infrastructure for runtime diagnostics.
+
+- Obtain loggers with `get_logger(...)` from `double_queens.log`.
+
+- Do not add new `print()` calls for diagnostics, debugging, solver progress,
+  hints, board state, or errors.
+
+- Prefer structured logging over formatted strings.
+
+  Preferred:
+
+  ```python
+  log.debug(
+      "deduction_applied",
+      rule=rule.name,
+      actions=len(actions),
+      cell=cell,
+  )
+  ```
+
+  Avoid:
+
+  ```python
+  print(f"Applied {rule.name} to {cell}")
+  ```
+
+- Use appropriate log levels:
+  - `debug`: internal solver state, rule evaluation, diagnostics
+  - `info`: meaningful high-level application events
+  - `warning`: unexpected but recoverable situations
+  - `error`: failures that prevent the requested operation
+
+- Pass data as structured fields instead of interpolating it into the event
+  name.
+
+  Preferred:
+
+  ```python
+  log.debug(
+      "rule_evaluated",
+      rule=rule.name,
+      cell=cell,
+      candidates=len(candidates),
+  )
+  ```
+
+  Avoid:
+
+  ```python
+  log.debug(
+      f"Rule {rule.name} evaluated for {cell} with {len(candidates)} candidates"
+  )
+  ```
+
+- Multiline structured values are supported by the project's logging renderer.
+  Pass them as normal structured fields.
+
+  Example:
+
+  ```python
+  log.debug(
+      "board_state",
+      board=render_board(board),
+  )
+  ```
+
+- `print()` is allowed only when stdout is intentionally part of a user-facing
+  CLI interface. It must not be used as a substitute for logging.
+
+- Do not change the logging infrastructure, `MultilineConsoleRenderer`, or
+  console output formatting unless the task explicitly requires a logging
+  change.
+
+- Do not duplicate logging-formatting logic elsewhere in the project. Keep
+  application code unaware of console alignment, ANSI colors, multiline
+  indentation, or other presentation details handled by the logging
+  infrastructure.
+
+- Tests must not depend on cosmetic console log formatting unless they are
+  specifically testing the logging renderer.
+
+- When adding new runtime diagnostics, follow the existing event naming and
+  structured-field conventions used by the project.
+
+- Follow these logging conventions for all new code. Existing `print()` calls
+  should only be migrated when the current task explicitly includes that
+  cleanup.

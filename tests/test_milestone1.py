@@ -7,7 +7,9 @@ from double_queens import (
     GroupKind, Premise, Rule, SolveStatus, best_deduction, find_deductions,
     next_hint, render_board, render_deduction, render_hint, solve_logically,
 )
+from double_queens.log import get_logger
 
+log = get_logger(__name__)
 U, Q, X = CellState.UNKNOWN, CellState.QUEEN, CellState.EXCLUDED
 
 
@@ -195,6 +197,11 @@ def test_hint_levels_and_debug(rule):
     deduction = deduction_for(board_with(changes), rule)
     hints = [render_hint(deduction, level) for level in range(1, 5)]
     assert len(set(hints)) == 4
+    log.hint(hints[0], level=1)
+    log.hint(hints[1], level=2)
+    log.hint(hints[2], level=3)
+    log.hint(hints[3], level=4)
+    log.hint(hints)
     assert hints[0].startswith("Look")
     for action in deduction.actions:
         assert str(action.cell) in hints[2] and str(action.cell) in hints[3]
