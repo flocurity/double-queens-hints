@@ -81,7 +81,9 @@ any of these commands to inspect the debug output while tests run.
   caller-created deductions; use deductions returned by the engine.
 - `hints/`: `render_hint` (levels 1–4), `render_deduction` (evidence and
   conclusions), and `render_board` (Markdown grid and dynamic region legend).
-  Colors are cosmetic; numbered labels stay distinct beyond the palette.
+  Colors are cosmetic. `DebugRenderContext` owns one randomized
+  `RegionPalette` for a complete debug trace, so boards and human-readable
+  hints share stable glyphs. Seeds and custom RNGs make tests deterministic.
 - `solver.py`: `solve_logically` mutates the supplied board by repeatedly
   calling `engine.next_hint` and `board.apply`. `LogicalSolveResult` holds the
   board, immutable history, `SolveStatus`, `solved`, and `reason`.

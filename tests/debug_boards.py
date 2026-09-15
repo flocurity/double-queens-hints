@@ -4,7 +4,10 @@ from functools import wraps
 from typing import ParamSpec, TypeVar
 from unittest.mock import patch
 
-from double_queens import Board, Deduction, render_board, render_deduction, render_hint
+from double_queens import (
+    Board, DebugRenderContext, Deduction, render_board, render_deduction,
+    render_hint,
+)
 from double_queens.log import get_logger
 
 log = get_logger(__name__)
@@ -26,13 +29,23 @@ def debug_boards(test: Callable[P, R]) -> Callable[P, R]:
         original_post_init = Deduction.__post_init__
         applying = False
         boards: list[Board] = []
+        context = DebugRenderContext.randomized()
+        palette_logged = False
 
         def show(board: Board, event: str) -> None:
+            nonlocal palette_logged
             index = next((i for i, item in enumerate(boards, 1) if item is board), None)
             if index is None:
                 boards.append(board)
                 index = len(boards)
-            log.info(f"board {index} {event}", index=index, board=render_board(board))
+            rendered = render_board(board, context=context)
+            if context.use_emojis and not palette_logged:
+                log.debug(
+                    "region_palette",
+                    mapping={str(region): glyph for region, glyph in context.mapping.items()},
+                )
+                palette_logged = True
+            log.info("board", index=index, state=event, board=rendered)
         @wraps(original_init)
         def traced_init(board: Board, *init_args, **init_kwargs) -> None:
             try:
@@ -46,8 +59,23 @@ def debug_boards(test: Callable[P, R]) -> Callable[P, R]:
         def traced_post_init(deduction: Deduction) -> None:
             original_post_init(deduction)
             log.info("deduction created", deduction=render_deduction(deduction))
-            hints = [render_hint(deduction, level) for level in range(1, 5)]
-            log.hint(hints)
+            try:
+                hints = [
+                    render_hint(
+                        deduction,
+                        level,
+                        region_display=context.display_region,
+                    )
+                    for level in range(1, 5)
+                ]
+            except StopIteration as error:
+                log.debug(
+                    "hint_rendering_skipped",
+                    error_type=type(error).__name__,
+                    error=str(error),
+                )
+            else:
+                log.hint(hints)
 
         def traced_apply(board: Board, deduction: Deduction) -> None:
             nonlocal applying
@@ -55,12 +83,14 @@ def debug_boards(test: Callable[P, R]) -> Callable[P, R]:
             # remove redundant log: if it is used it has been created before
             #log.info("deduction used", deduction=render_deduction(deduction))
             applying = True
-            board_before = render_board(board)
+            board_before = render_board(board, context=context)
             try:
                 original_apply(board, deduction)
             except Exception as error:
                 log.warning("application rejected", error_type=type(error).__name__, error=str(error))
-                assert board_before == render_board(board), ("Board was mutated by a rejected deduction")
+                assert board_before == render_board(board, context=context), (
+                    "Board was mutated by a rejected deduction"
+                )
                 raise
             else:
                 show(board, "after application")

@@ -1,8 +1,15 @@
-from ..board import CellState
+from collections.abc import Callable
+
+from ..board import CellState, GroupKind, RegionId
 from ..deduction import Deduction, Rule
 
 
-def render_hint(deduction: Deduction, level: int = 1) -> str:
+def render_hint(
+    deduction: Deduction,
+    level: int = 1,
+    *,
+    region_display: Callable[[RegionId], str] | None = None,
+) -> str:
     if level not in (1, 2, 3, 4):
         raise ValueError("Hint level must be 1, 2, 3, or 4")
     premise = deduction.premises[0]
@@ -18,7 +25,10 @@ def render_hint(deduction: Deduction, level: int = 1) -> str:
     else:
         if premise.group is None:
             raise ValueError("Group deduction requires a source group")
-        source = premise.group.label
+        if premise.group.kind == GroupKind.REGION and region_display is not None:
+            source = f"region {region_display(RegionId(premise.group.index))}"
+        else:
+            source = premise.group.label
         count = sum(f.state == CellState.QUEEN for f in premise.facts)
         if level == 1:
             return f"Look at {source}."

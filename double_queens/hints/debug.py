@@ -1,19 +1,105 @@
 """Cosmetic region symbols never enter the reasoning model."""
 from collections import Counter
-from collections.abc import Mapping
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from html import escape
 import os
+import random
 import sys
 import unicodedata
+from types import MappingProxyType
 
-from ..board import Board, CellState
+from ..board import Board, CellState, RegionId
 
 _COLORS = ("🔴", "🔵", "🟢", "🟡", "🟣", "🟠", "🟤", "⚫", "⚪", "🩶", "🩵")
 
 # Newer hearts are drawn by the font but treated as narrow by VS Code's
 # older terminal width tables. Keep compatibility data out of puzzle logic.
 _VSCODE_WIDTHS = {"🩶": 1, "🩵": 1}
+
+
+@dataclass
+class RegionPalette:
+    """Stable, session-owned mapping from region IDs to display glyphs."""
+
+    glyphs: tuple[str, ...]
+    _mapping: dict[RegionId, str] = field(default_factory=dict, init=False)
+
+    @classmethod
+    def randomized(
+        cls,
+        *,
+        seed: int | str | bytes | None = None,
+        rng: random.Random | None = None,
+        glyphs: Iterable[str] | None = None,
+    ) -> "RegionPalette":
+        """Create a shuffled palette; inject a seed or RNG for deterministic tests."""
+        if seed is not None and rng is not None:
+            raise ValueError("Provide either seed or rng, not both")
+        available = list(_COLORS if glyphs is None else glyphs)
+        if not available:
+            raise ValueError("A region palette requires at least one glyph")
+        if len(set(available)) != len(available):
+            raise ValueError("Region palette glyphs must be unique")
+        (rng or random.Random(seed)).shuffle(available)
+        return cls(tuple(available))
+
+    def prepare(self, region_ids: Iterable[RegionId | str]) -> None:
+        """Assign unseen regions deterministically within this palette session."""
+        for region_id in sorted(set(region_ids)):
+            self.glyph_for(region_id)
+
+    def glyph_for(self, region_id: RegionId | str) -> str:
+        region = RegionId(region_id)
+        if region not in self._mapping:
+            self._mapping[region] = self.glyphs[len(self._mapping) % len(self.glyphs)]
+        return self._mapping[region]
+
+    @property
+    def mapping(self) -> Mapping[RegionId, str]:
+        """Expose a read-only snapshot for diagnostics and structured logging."""
+        return MappingProxyType(dict(self._mapping))
+
+
+@dataclass
+class DebugRenderContext:
+    """Presentation state shared by every board and hint in one debug trace."""
+
+    palette: RegionPalette
+    use_emojis: bool
+    terminal_profile: str = "auto"
+    glyph_widths: Mapping[str, int] | None = None
+
+    @classmethod
+    def randomized(
+        cls,
+        *,
+        seed: int | str | bytes | None = None,
+        rng: random.Random | None = None,
+        use_emojis: bool | None = None,
+        glyphs: Iterable[str] | None = None,
+        terminal_profile: str = "auto",
+        glyph_widths: Mapping[str, int] | None = None,
+    ) -> "DebugRenderContext":
+        return cls(
+            palette=RegionPalette.randomized(seed=seed, rng=rng, glyphs=glyphs),
+            use_emojis=_supports_emojis() if use_emojis is None else use_emojis,
+            terminal_profile=terminal_profile,
+            glyph_widths=glyph_widths,
+        )
+
+    def prepare(self, region_ids: Iterable[RegionId | str]) -> None:
+        self.palette.prepare(region_ids)
+
+    def glyph_for(self, region_id: RegionId | str) -> str:
+        return self.palette.glyph_for(region_id)
+
+    def display_region(self, region_id: RegionId | str) -> str:
+        return self.glyph_for(region_id) if self.use_emojis else str(region_id)
+
+    @property
+    def mapping(self) -> Mapping[RegionId, str]:
+        return self.palette.mapping
 
 
 @dataclass(frozen=True)
@@ -80,13 +166,22 @@ def _name(region: str) -> str:
 def render_board(
     board: Board, *, use_emojis: bool | None = None, legend: bool = False,
     terminal_profile: str = 'auto', glyph_widths: Mapping[str, int] | None = None,
+    context: DebugRenderContext | None = None,
 ) -> str:
     """Render Markdown; calibrate glyph_widths for local terminal/font metrics."""
+    if context is not None:
+        context.prepare(board.region_ids)
+        use_emojis = context.use_emojis
+        terminal_profile = context.terminal_profile
+        glyph_widths = context.glyph_widths
     layout = _display_layout(terminal_profile, glyph_widths)
     if use_emojis is None:
         use_emojis = _supports_emojis()
-    visuals = {region: _COLORS[i % len(_COLORS)]
-               for i, region in enumerate(board.region_ids)}
+    visuals = {
+        region: context.glyph_for(region) if context is not None
+        else _COLORS[i % len(_COLORS)]
+        for i, region in enumerate(board.region_ids)
+    }
 
     def symbol(region: str) -> str:
         return visuals[region] if use_emojis else _name(region)
