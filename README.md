@@ -72,3 +72,31 @@ reasoning, screenshot ingestion, exhaustive solver, or GUI. Section 23's debug
 views are included as presentation helpers. No milestone 2 features are included.
 
 Next step, only after explicit approval: milestone 2 candidate-set reasoning.
+
+## Terminal alignment
+
+`render_board` keeps width estimation and padding in a single presentation
+helper. `terminal_profile="auto"` selects the VS Code profile when
+`TERM_PROGRAM=vscode`; that profile compensates for narrow 🩶 and 🩵 in the
+older terminal width table. Use `terminal_profile="unicode"` for saved
+Markdown or terminals with newer width tables. Two-digit row labels remain
+presentation-only.
+
+Font metrics cannot be inferred perfectly from Unicode. Override measured
+glyph widths centrally for your setup, for example:
+
+```python
+render_board(board, use_emojis=True, terminal_profile="vscode",
+             glyph_widths={"🤍": 1})
+```
+
+This adds one padding space for a white heart that advances one column on
+that terminal. Overrides support entire glyph sequences, not only individual
+characters. They also apply in the queen-region summary. Complex joined
+emoji may need an explicit override. Text mode remains available with
+`use_emojis=False`. No terminal settings are changed.
+
+The white heart in the alignment example comes from the test's temporary
+palette override; the normal palette contains ⚪, 🩶 and 🩵, not 🤍.
+Before removing wcwidth, the diagnostic reported `len=1, wcswidth=2` for each
+of 🔴 🔵 ⚪ 🤍 🩶 🩵 👑 ❌. Those numbers do not measure font appearance.
