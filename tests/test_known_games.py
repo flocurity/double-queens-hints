@@ -1,10 +1,10 @@
 """Real-game acceptance fixtures, manually transcribed without a solution."""
 import pytest
 
-from debug_boards import debug_boards
+from debug_boards import debug_boards, suspend_debug_tracing
 from double_queens import (
     Action, Board, Cell, CellFact, CellState, ContradictionError, Deduction,
-    Group, GroupKind, Premise, Rule, next_hint, render_board, render_deduction,
+    Group, GroupKind, Premise, Rule, next_hint, render_board,
 )
 from double_queens.log import get_logger
 
@@ -53,10 +53,9 @@ def make_known_game_001() -> Board:
 def known_game_001() -> Board:
     return make_known_game_001()
 
-@debug_boards
+@debug_boards(log_all_deductions=True)
 def test_known_game_001_next_hint_l6c5(known_game_001: Board) -> None:
     board = known_game_001
-    log.info('real game 001 — start', board=render_board(board))
     before = board.state
     assert board.size == 9
     assert board.queens(board.cells()) == (Cell(4, 1), Cell(6, 2), Cell(7, 4))
@@ -66,7 +65,6 @@ def test_known_game_001_next_hint_l6c5(known_game_001: Board) -> None:
 
     deduction = next_hint(board)
     assert deduction is not None
-    # log.info("deduction", deduction=render_deduction(deduction))
     assert board.state == before
     # Explicit evidence from the screenshot, independent of group-query output.
     green_cells = (Cell(4, 1), Cell(5, 1), Cell(5, 2), Cell(5, 3),
@@ -91,8 +89,7 @@ def test_known_game_001_next_hint_l6c5(known_game_001: Board) -> None:
 @debug_boards
 def test_known_game_001_logical_replay(known_game_001: Board) -> None:
     board = known_game_001
-    # log.blank()
-    log.info('start', game="real 001", board=render_board(board))
+    log.info('start', game="real 001")
     history: list[Deduction] = []
     try:
         while not board.is_solved():
@@ -102,11 +99,9 @@ def test_known_game_001_logical_replay(known_game_001: Board) -> None:
             if deduction is None:
                 break
             history.append(deduction)
-            log.info('step', step=len(history), deduction=render_deduction(deduction))
             unknown_before = len(board.unknown(board.cells()))
             board.apply(deduction)
             assert len(board.unknown(board.cells())) < unknown_before
-            log.info("after applying deduction", board=render_board(board))
     except ContradictionError:
         log.info('contradiction', game="real 001", board=render_board(board))
         raise
@@ -125,7 +120,7 @@ def test_known_game_001_logical_replay(known_game_001: Board) -> None:
     assert board.at(Cell(5, 4)) == CellState.QUEEN
     board.validate()
     if board.is_solved():
-        log.info('solved', game="real 001", board=render_board(board))
+        log.info('solved', game="real 001")
         assert board.is_solved()
     elif len(history) == 7:
         log.info('STALLED', game="real 001",
@@ -135,14 +130,15 @@ def test_known_game_001_logical_replay(known_game_001: Board) -> None:
         log.info('Known game 001 logical progression changed from'
                  'the milestone 1 baseline', new_history=len(history))
         assert next_hint(board) is None
-    log.info(f'Deductions applied', count=len(history), board=render_board(board))
+    # log.info(f'Deductions applied', count=len(history), board=render_board(board))
     final_state = board.state
 
-    replay_board = make_known_game_001()
-    for deduction in history:
-        assert deduction == next_hint(replay_board)
-        replay_board.apply(deduction)
-    assert replay_board.state == final_state
-    assert replay_board.regions == board.regions
-    assert replay_board.is_solved() == board.is_solved()
-    replay_board.validate()
+    with suspend_debug_tracing():
+        replay_board = make_known_game_001()
+        for deduction in history:
+            assert deduction == next_hint(replay_board)
+            replay_board.apply(deduction)
+        assert replay_board.state == final_state
+        assert replay_board.regions == board.regions
+        assert replay_board.is_solved() == board.is_solved()
+        replay_board.validate()
