@@ -30,12 +30,25 @@ def render_hint(
         else:
             source = premise.group.label
         count = sum(f.state == CellState.QUEEN for f in premise.facts)
-        if level == 1:
+        if deduction.rule == Rule.COMMON_NEIGHBOR_EXCLUSION:
+            constraint = deduction.constraint
+            if constraint is None:
+                raise ValueError("Common-neighbor deduction requires a constraint")
+            candidates = ", ".join(map(str, sorted(constraint.cells)))
+            if level == 1:
+                return f"Look at the remaining candidates in {source}."
+            if level == 2:
+                return (f"{source.capitalize()} still needs {constraint.queen_count} queen(s) "
+                        f"among {candidates}. Which cells touch every possible position?")
+            if level == 3:
+                return (f"At least one queen must occur among {candidates} in {source}. "
+                        f"{targets} touch every candidate, so cannot contain queens.")
+        elif level == 1:
             return f"Look at {source}."
-        if level == 2:
+        elif level == 2:
             return (f"{source.capitalize()} requires {premise.required_queens} queens and already has {count}. "
                     "How many unknown cells remain?")
-        if level == 3:
+        elif level == 3:
             if deduction.rule == Rule.FORCED_REMAINING_CELLS:
                 return f"Only {targets} remain available in {source}; all are needed to reach two queens."
             return f"{source.capitalize()} already has two queens, so {targets} cannot contain queens."
@@ -51,6 +64,11 @@ def render_deduction(deduction: Deduction) -> str:
         if premise.group:
             lines.append(f"- {premise.group.label} requires {premise.required_queens} queens")
         lines.extend(f"- {fact.cell} = {fact.state.name}" for fact in premise.facts)
+    if deduction.constraint is not None:
+        cells = ", ".join(map(str, sorted(deduction.constraint.cells)))
+        lines.extend(["CONSTRAINT:",
+                      f"- exactly {deduction.constraint.queen_count} queen(s) among {{{cells}}}"])
+    lines.extend(f"- {fact.target} touches {fact.candidate}" for fact in deduction.adjacencies)
     lines.append("CONCLUSION:")
     lines.extend(f"- {a.cell} = {a.state.name}" for a in deduction.actions)
     return "\n".join(lines)

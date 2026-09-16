@@ -1,6 +1,6 @@
 # Double Queens Hint
 
-Milestone 1: elementary, explainable Python hints. No runtime dependencies.
+Milestone 2: elementary and candidate-set hints with structured, replayable proofs.
 
 ## Origin: the L6C5 incident
 
@@ -70,10 +70,18 @@ any of these commands to inspect the debug output while tests run.
   `Rule`. Group evidence records quota, group membership, and every observed
   state. Adjacency evidence records the queen and unknown targets. These
   facts are the structured explanation; consequences are separate actions.
-- `rules/`: only forced remaining cells, queen adjacency, and completed groups.
+- `rules/`: forced remaining cells, queen adjacency, completed groups, and
+  common-neighbor exclusion.
+- `QueenConstraint(cells, queen_count, source=None)` normalizes cells into a
+  frozen set and validates the exact count. `derive_constraints(board)` returns
+  each row, column, and region's unknown cells and remaining queen quota, with
+  a full `Premise` snapshot as its source. No candidate combinations are searched.
+  Common-neighbor deductions carry this constraint and `AdjacencyFact` pairs
+  connecting each excluded target to every candidate. Target states and source
+  facts participate in the existing stale-evidence checks.
 - `engine.py`: `find_deductions`, `best_deduction`, and `next_hint`.
   Queries validate without mutation. Ranking uses difficulty, explicit rule
-  priority (forced queens, adjacency, completed groups), evidence count,
+  priority (forced queens, adjacency, completed groups, common neighbors), evidence count,
   action count, then stable coordinate/source tie breakers.
 - `Board.apply`: checks evidence freshness, rejects state conflicts, validates
   the resulting board, then commits atomically. It applies supplied actions
@@ -103,11 +111,17 @@ unknown cells do not need cosmetic exclusion marks. Stale deductions raise
 raise errors rather than being reported as a logical stall.
 
 Local validation does not establish global solvability. Unsupported situations
-return `LOGIC_STALLED`. There is no guessing, backtracking, candidate-set
-reasoning, screenshot ingestion, exhaustive solver, or GUI. Section 23's debug
-views are included as presentation helpers. No milestone 2 features are included.
+return `LOGIC_STALLED`. Candidate reasoning currently derives only residual
+group constraints and excludes unknown cells adjacent to every candidate of
+a constraint requiring at least one queen. These deductions have difficulty 2
+and four progressive hint levels. There is no guessing, backtracking,
+constraint interaction, screenshot ingestion, exhaustive solver, or GUI.
 
-Next step, only after explicit approval: milestone 2 candidate-set reasoning.
+The real-game fixture still places L6C5 at step 1. Milestone 1 stalled after
+7 deductions; milestone 2 solves it in 32 deductions, including 3 common-neighbor
+deductions. Its complete history is checked by replaying the public hint API.
+
+Next step, only after explicit approval: milestone 3 constraint interactions.
 
 ## Terminal alignment
 

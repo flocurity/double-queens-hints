@@ -179,14 +179,17 @@ def test_ranking_is_explicit_and_query_is_pure():
     board = board_with([(0, 0, Q), (0, 3, Q)] + [(4, c, X) for c in range(8) if c not in (1, 5)])
     before = board.state
     deductions = find_deductions(board)
-    assert {d.rule for d in deductions} == set(Rule)
+    assert {d.rule for d in deductions} == {
+        Rule.FORCED_REMAINING_CELLS, Rule.QUEEN_ADJACENCY, Rule.COMPLETED_GROUP,
+    }
     assert next_hint(board).rule == Rule.FORCED_REMAINING_CELLS
     assert best_deduction(reversed(deductions)) == next_hint(board)
     assert board.state == before
     assert best_deduction([]) is None
 
 
-@pytest.mark.parametrize("rule", list(Rule))
+@pytest.mark.parametrize("rule", [Rule.FORCED_REMAINING_CELLS,
+                                  Rule.QUEEN_ADJACENCY, Rule.COMPLETED_GROUP])
 @debug_boards
 def test_hint_levels_and_debug(rule):
     changes = [(0, 0, Q)]

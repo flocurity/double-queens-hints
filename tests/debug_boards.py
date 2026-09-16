@@ -80,8 +80,9 @@ def debug_boards(test: Callable[P, R]) -> Callable[P, R]:
         def traced_apply(board: Board, deduction: Deduction) -> None:
             nonlocal applying
             show(board, "before application")
-            # remove redundant log: if it is used it has been created before
-            #log.info("deduction used", deduction=render_deduction(deduction))
+            
+            log.info("deduction used", deduction=render_deduction(deduction))
+            log.hint(render_hint(deduction))
             applying = True
             board_before = render_board(board, context=context)
             try:

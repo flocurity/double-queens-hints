@@ -53,7 +53,7 @@ def make_known_game_001() -> Board:
 def known_game_001() -> Board:
     return make_known_game_001()
 
-
+@debug_boards
 def test_known_game_001_next_hint_l6c5(known_game_001: Board) -> None:
     board = known_game_001
     log.info('real game 001 — start', board=render_board(board))
@@ -66,7 +66,7 @@ def test_known_game_001_next_hint_l6c5(known_game_001: Board) -> None:
 
     deduction = next_hint(board)
     assert deduction is not None
-    log.info("deduction", deduction=render_deduction(deduction))
+    # log.info("deduction", deduction=render_deduction(deduction))
     assert board.state == before
     # Explicit evidence from the screenshot, independent of group-query output.
     green_cells = (Cell(4, 1), Cell(5, 1), Cell(5, 2), Cell(5, 3),
@@ -88,10 +88,10 @@ def test_known_game_001_next_hint_l6c5(known_game_001: Board) -> None:
         required_queens=2,
     ),)
 
-
+@debug_boards
 def test_known_game_001_logical_replay(known_game_001: Board) -> None:
     board = known_game_001
-    log.blank()
+    # log.blank()
     log.info('start', game="real 001", board=render_board(board))
     history: list[Deduction] = []
     try:
@@ -112,6 +112,15 @@ def test_known_game_001_logical_replay(known_game_001: Board) -> None:
         raise
 
     assert history
+    # Milestone 1's seven-step prefix is preserved; the new rule continues it.
+    assert all(d.difficulty == 1 for d in history[:7])
+    assert history[7].rule == Rule.COMMON_NEIGHBOR_EXCLUSION
+    assert history[7].constraint.cells == frozenset((Cell(0, 5), Cell(1, 5)))
+    assert history[7].constraint.queen_count == 1
+    assert history[7].actions == (Action(Cell(0, 6), CellState.EXCLUDED),)
+    assert len(history) == 32
+    assert sum(d.rule == Rule.COMMON_NEIGHBOR_EXCLUSION for d in history) == 3
+    assert board.is_solved()
     assert any(Action(Cell(5, 4), CellState.QUEEN) in d.actions for d in history)
     assert board.at(Cell(5, 4)) == CellState.QUEEN
     board.validate()

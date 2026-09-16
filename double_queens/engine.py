@@ -3,10 +3,10 @@ from collections.abc import Iterable
 
 from .board import Board
 from .deduction import Deduction, Rule
-from .rules import adjacency, completed_group, forced_cells
+from .rules import adjacency, candidate_sets, completed_group, forced_cells
 
 _PRIORITY = {Rule.FORCED_REMAINING_CELLS: 0, Rule.QUEEN_ADJACENCY: 1,
-             Rule.COMPLETED_GROUP: 2}
+             Rule.COMPLETED_GROUP: 2, Rule.COMMON_NEIGHBOR_EXCLUSION: 3}
 
 
 def _rank(deduction: Deduction) -> tuple:
@@ -20,7 +20,8 @@ def find_deductions(board: Board) -> list[Deduction]:
     board.validate()
     return sorted(forced_cells.find_deductions(board)
                   + adjacency.find_deductions(board)
-                  + completed_group.find_deductions(board), key=_rank)
+                  + completed_group.find_deductions(board)
+                  + candidate_sets.find_deductions(board), key=_rank)
 
 
 def best_deduction(deductions: Iterable[Deduction]) -> Deduction | None:
