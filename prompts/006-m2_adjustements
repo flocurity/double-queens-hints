@@ -1,0 +1,40 @@
+Please make two small test-only improvements to the Milestone 2 candidate-set tests.
+
+Do not change production code unless a test reveals an actual bug.
+
+1. Add an explicit stale-target evidence test for COMMON_NEIGHBOR_EXCLUSION.
+
+   The existing stale-evidence coverage changes a source/candidate cell, and
+   reapplying a deduction indirectly tests changed targets.
+
+   Add a focused test that:
+   - creates a valid common-neighbor deduction;
+   - creates a second Board from the original state;
+   - changes only one of that deduction's target cells from UNKNOWN to EXCLUDED;
+   - leaves the source constraint/candidate cells unchanged;
+   - verifies that applying the original deduction to that changed Board raises
+     ValueError matching "stale";
+   - verifies that the rejected application is atomic and does not mutate the
+     changed Board.
+
+   The purpose is to explicitly document that target states are part of the
+   deduction's freshness evidence.
+
+2. Clarify the existing
+   test_known_targets_are_not_reemitted_and_long_diagonals_are_untouched test.
+
+   Keep the behavior being tested, but make the long-diagonal assertion
+   self-explanatory to a future reader.
+
+   Prefer adding a concise comment explaining geometrically why the asserted
+   cell represents a non-immediate diagonal cell and therefore must not be
+   excluded by queen adjacency/common-neighbor reasoning.
+
+   If the current Cell(2, 5) assertion does not actually demonstrate that
+   property clearly for this fixture, replace it with a coordinate that does
+   and explain it in the comment.
+
+Keep the changes minimal and limited to tests.
+
+Run the relevant candidate-set tests, then run the full test suite and report
+what changed and the results.

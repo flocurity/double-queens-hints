@@ -88,7 +88,7 @@ any of these commands to inspect the debug output while tests run.
   without additional propagation. It is not a proof verifier for arbitrary
   caller-created deductions; use deductions returned by the engine.
 - `hints/`: `render_hint` (levels 1–4), `render_deduction` (evidence and
-  conclusions), and `render_board` (Markdown grid and dynamic region legend).
+  conclusions), and `render_board` (compact terminal grid and optional region legend).
   Colors are cosmetic. `DebugRenderContext` owns one randomized
   `RegionPalette` for a complete debug trace, so boards and human-readable
   hints share stable glyphs. Seeds and custom RNGs make tests deterministic.

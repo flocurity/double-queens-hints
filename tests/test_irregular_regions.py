@@ -199,14 +199,23 @@ def test_render_irregular_board_without_legend(irregular_layout):
     emojis = render_board(board, use_emojis=True)
     log.info('Realistic irregular board:', board=emojis)
     assert 'Color Region Legend' not in text + emojis
-    rows = [line.split('|')[2:-2] for line in text.splitlines() if 'Line ' in line
-            and not line.lstrip().startswith('| Line / Col')]
+    # Text cells retain their names and state prefixes in padded column slots.
+    widths = [4 if c in (queen.col, excluded.col) else 2 for c in range(10)]
+    rows = []
+    for line in text.splitlines()[1:]:
+        grid = line.split('|')[0][3:]
+        offset = 0
+        row = []
+        for width in widths:
+            row.append(grid[offset:offset + width])
+            offset += width
+        rows.append(row)
     assert len(rows) == 10 and all(len(row) == 10 for row in rows)
     for r in range(10):
         for c in range(10):
             prefix = 'Q ' if Cell(r, c) == queen else 'X ' if Cell(r, c) == excluded else ''
             assert rows[r][c].strip() == prefix + irregular_layout.regions[r][c]
     assert emojis.count('👑') == 1 and emojis.count('❌') == 1
-    queen_row = next(line for line in text.splitlines() if f'Line {queen.row + 1:02d}' in line)
-    assert queen_row.split('|')[-2].strip() == 'A'
+    queen_row = text.splitlines()[queen.row + 1]
+    assert queen_row.split('|')[1] == 'A'
     assert board.state == before

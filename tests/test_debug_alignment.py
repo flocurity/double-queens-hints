@@ -41,17 +41,16 @@ def test_mixed_glyphs_align_in_terminal(monkeypatch, palette):
     log.info('Mixed region glyphs:', board=rendered)
     lines = rendered.splitlines()
     expected_columns = pipe_columns(lines[0])
-    assert len(expected_columns) == 7
+    assert len(expected_columns) == 1
     assert all(pipe_columns(line) == expected_columns for line in lines)
-    assert len({observed_width(line) for line in lines}) == 1
     for r, source in enumerate(regions):
-        cells = [cell.strip() for cell in lines[r + 2].split('|')[2:-2]]
         expected = [palette[ord(region) - ord('A')] for region in source]
         if r == 0:
             expected[0] = '👑'
         if r == 3:
             expected[3] = '❌'
-        assert cells == expected
+        assert lines[r + 1].split('|')[0][3:] == ''.join(
+            glyph + ' ' * (2 - observed_width(glyph)) for glyph in expected)
     assert board.state == before
     assert 'Color Region Legend' not in rendered
 
@@ -61,8 +60,8 @@ def test_row_numbers_are_padded_without_changing_cell_coordinates():
     board = Board([[str(r)] * 12 for r in range(12)])
     rendered = render_board(board, use_emojis=False)
     lines = rendered.splitlines()
-    assert [line.split('|')[1].strip() for line in lines[2:]] == [
-        f'Line {r:02d}' for r in range(1, 13)
+    assert [line.split()[0] for line in lines[1:]] == [
+        f'{r:02d}' for r in range(1, 13)
     ]
     assert all(pipe_columns(line) == pipe_columns(lines[0]) for line in lines)
     assert str(Cell(5, 4)) == 'L6C5'
@@ -78,18 +77,16 @@ def test_vscode_padding_uses_calibrated_widths(monkeypatch, white_width):
     board = Board([list('ABCDEF')] * 6)
     rendered = render_board(board, use_emojis=True, glyph_widths={'🤍': white_width})
     log.info('VS Code calibrated region cells:', board=rendered)
-    # Six content columns have width five, plus one space on each side.
-    cells = rendered.splitlines()[2].split('|')[2:-2]
     expected_widths = (2, 2, 2, white_width, 1, 1)
-    for cell, glyph, width in zip(cells, palette, expected_widths):
-        assert cell == ' ' + glyph + ' ' * (6 - width)
+    assert rendered.splitlines()[1] == '01 ' + ''.join(
+        glyph + ' ' * (2 - width) for glyph, width in zip(palette, expected_widths)) + '|-'
     # The one-column compensation accumulates correctly across a full row.
-    simulated = len(rendered.splitlines()[2])
+    simulated = len(rendered.splitlines()[1].split('|')[0])
     for glyph, width in zip(palette, expected_widths):
         simulated += width - len(glyph)
-    assert simulated == len(rendered.splitlines()[0])
+    assert simulated == len(rendered.splitlines()[0].split('|')[0])
     standard = render_board(board, use_emojis=True, terminal_profile='unicode')
-    assert standard.splitlines()[2].split('|')[6] == ' 🩶    '
+    assert standard.splitlines()[1] == '01 ' + ''.join(palette) + '|-'
 
 
 @debug_boards
@@ -98,8 +95,29 @@ def test_width_overrides_cover_summary_and_do_not_leak(monkeypatch):
     board = Board([list('AAA'), list('BBB'), list('CCC')], [[1, 0, 0], [0]*3, [0]*3])
     calibrated = render_board(board, use_emojis=True, terminal_profile='unicode', glyph_widths={'🤍': 1})
     standard = render_board(board, use_emojis=True, terminal_profile='unicode')
-    assert len(calibrated.splitlines()[2].split('|')[-2]) == len(standard.splitlines()[2].split('|')[-2]) + 1
+    assert calibrated.splitlines()[1] == '01 👑🤍 🤍 |🤍'
+    assert standard.splitlines()[1] == '01 👑🤍🤍|🤍'
     assert debug._COLORS == ('🤍', '🔴', '🔵')
+
+
+def test_compact_nine_column_contract():
+    board = Board([[str(r)] * 9 for r in range(9)])
+    rendered = render_board(board, use_emojis=True, terminal_profile='unicode')
+    lines = rendered.splitlines()
+    assert lines[0] == '   1 2 3 4 5 6 7 8 9 |Queen(s)'
+    assert lines[1] == '01 ' + '🔴' * 9 + '|-'
+    assert len(lines) == 10
+    assert all(line.count('|') == 1 for line in lines)
+    assert 'Line' not in rendered and 'Col' not in rendered and ':---' not in rendered
+    assert all(' ' not in line[3:].split('|')[0] for line in lines[1:])
+
+
+def test_text_cells_align_with_headers_and_keep_state_and_region():
+    board = Board(['ABC', 'ABC', 'ABC'], [[1, -1, 0], [0]*3, [0]*3])
+    lines = render_board(board, use_emojis=False).splitlines()
+    assert lines == ['   1   2   3 |Queen(s)', '01 Q A X B C |A',
+                     '02 A   B   C |-', '03 A   B   C |-']
+    assert all(pipe_columns(line) == [13] for line in lines)
 
 
 @pytest.mark.parametrize('options', [{'terminal_profile': 'invalid'}, {'glyph_widths': {'': 2}},

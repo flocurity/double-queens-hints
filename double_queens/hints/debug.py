@@ -168,7 +168,7 @@ def render_board(
     terminal_profile: str = 'auto', glyph_widths: Mapping[str, int] | None = None,
     context: DebugRenderContext | None = None,
 ) -> str:
-    """Render Markdown; calibrate glyph_widths for local terminal/font metrics."""
+    """Render a compact terminal grid using calibrated glyph display widths."""
     if context is not None:
         context.prepare(board.region_ids)
         use_emojis = context.use_emojis
@@ -192,8 +192,8 @@ def render_board(
         for region, emoji in visuals.items():
             lines.append(f"- {emoji} = {_name(region)}" if use_emojis else f"- {_name(region)}")
         lines.append("")
-    table = [["Line / Col", *(f"Col {c + 1}" for c in range(board.size)),
-              "Queen Region(s)"]]
+    table = []
+    summaries = []
     for r in range(board.size):
         row = []
         for cell in board.row(r):
@@ -210,21 +210,19 @@ def render_board(
         counts = Counter(board.regions[r][c.col] for c in board.queens(board.row(r)))
         multiplier = "×" if use_emojis else "x"
         summary = "  ".join(symbol(region) + (f" {multiplier}{count}" if count > 1 else "")
-                            for region, count in sorted(counts.items())) or ("—" if use_emojis else "-")
-        table.append([f"Line {r + 1:02d}", *row, summary])
-    widths = [max(5, *(layout.width(row[c]) for row in table))
-              for c in range(board.size + 2)]
+                            for region, count in sorted(counts.items())) or "-"
+        table.append(row)
+        summaries.append(summary)
+    headers = [str(c + 1) for c in range(board.size)]
+    widths = [max(2, layout.width(headers[c]),
+                  *(layout.width(row[c]) + (0 if use_emojis else 1) for row in table))
+              for c in range(board.size)]
+    row_width = max(2, len(str(board.size)))
 
-    def format_row(row: list[str]) -> str:
-        return "| " + " | ".join(
-            layout.pad(value, width)
-            for value, width in zip(row, widths)
-        ) + " |"
+    def grid(row: list[str]) -> str:
+        return "".join(layout.pad(value, width) for value, width in zip(row, widths))
 
-    lines.append(format_row(table[0]))
-    lines.append("| " + " | ".join(
-        ":" + "-" * (width - 1) if c == 0 else ":" + "-" * (width - 2) + ":"
-        for c, width in enumerate(widths)
-    ) + " |")
-    lines.extend(format_row(row) for row in table[1:])
+    lines.append(" " * (row_width + 1) + grid(headers) + "|Queen(s)")
+    lines.extend(f"{r + 1:0{row_width}d} " + grid(row) + "|" + summary
+                 for r, (row, summary) in enumerate(zip(table, summaries)))
     return "\n".join(lines)
