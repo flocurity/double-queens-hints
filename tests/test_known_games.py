@@ -4,7 +4,7 @@ import pytest
 from debug_boards import debug_boards, suspend_debug_tracing
 from double_queens import (
     Action, Board, Cell, CellFact, CellState, ContradictionError, Deduction,
-    Group, GroupKind, Premise, Rule, next_hint, render_board,
+    Group, GroupKind, Premise, Rule, find_deductions, next_hint, render_board,
 )
 from double_queens.log import get_logger
 
@@ -42,16 +42,59 @@ KNOWN_GAME_001_INITIAL_STATE = (
 )
 
 
-def make_known_game_001() -> Board:
+# Manually transcribed 10×10 game layout. The empty state deliberately records
+# no inferred marks: every cell is still UNKNOWN.
+KNOWN_GAME_002_REGIONS = (
+    'ABBBBBBCCC',  # L1
+    'AABBBBCCCD',  # L2
+    'AAABFBCCCD',  # L3
+    'EEBBFFFCCD',  # L4
+    'EEBBFFCCCD',  # L5
+    'EEBBBFCGHH',  # L6
+    'EGGGGGGGGH',  # L7
+    'EEGIIGJHHH',  # L8
+    'EEGIIIJJHH',  # L9
+    'EEJJJJJJJJ',  # L10
+)
+
+KNOWN_GAME_002_INITIAL_STATE = (
+    '..........',  # L1
+    '..........',  # L2
+    '..........',  # L3
+    '..........',  # L4
+    '..........',  # L5
+    '..........',  # L6
+    '..........',  # L7
+    '..........',  # L8
+    '..........',  # L9
+    '..........',  # L10
+)
+
+
+def make_known_game(regions, state):
     """Decode only the explicit screenshot transcription into a fresh board."""
     states = {'.': CellState.UNKNOWN, 'Q': CellState.QUEEN, 'X': CellState.EXCLUDED}
-    return Board(KNOWN_GAME_001_REGIONS,
-                 [[states[mark] for mark in row] for row in KNOWN_GAME_001_INITIAL_STATE])
+    return Board(regions,
+                 [[states[mark] for mark in row] for row in state])
+
+
+def make_known_game_001() -> Board:
+    return make_known_game(KNOWN_GAME_001_REGIONS, KNOWN_GAME_001_INITIAL_STATE)
+
+
+def make_known_game_002() -> Board:
+    return make_known_game(KNOWN_GAME_002_REGIONS, KNOWN_GAME_002_INITIAL_STATE)
 
 
 @pytest.fixture
 def known_game_001() -> Board:
     return make_known_game_001()
+
+
+@pytest.fixture
+def known_game_002() -> Board:
+    return make_known_game_002()
+
 
 @debug_boards(log_all_deductions=True)
 def test_known_game_001_next_hint_l6c5(known_game_001: Board) -> None:
@@ -142,3 +185,33 @@ def test_known_game_001_logical_replay(known_game_001: Board) -> None:
         assert replay_board.regions == board.regions
         assert replay_board.is_solved() == board.is_solved()
         replay_board.validate()
+
+@debug_boards(log_all_deductions=True)
+def test_known_game_002_empty_transcription(known_game_002: Board) -> None:
+    board = known_game_002
+    assert board.size == 10
+    assert board.regions == tuple(tuple(row) for row in KNOWN_GAME_002_REGIONS)
+    assert board.region_ids == tuple('ABCDEFGHIJ')
+    assert len(board.unknown(board.cells())) == 100
+    assert not board.queens(board.cells())
+    assert not board.excluded(board.cells())
+
+    log.info('start', game="real 002")
+    history: list[Deduction] = []
+    try:
+        while not board.is_solved():
+            before = board.state
+            deduction = next_hint(board)
+            assert board.state == before
+            if deduction is None:
+                break
+            history.append(deduction)
+            unknown_before = len(board.unknown(board.cells()))
+            board.apply(deduction)
+            assert len(board.unknown(board.cells())) < unknown_before
+    except ContradictionError:
+        log.info('contradiction', game="real 001", board=render_board(board))
+        raise
+
+    board.validate()
+    assert not find_deductions(board)
