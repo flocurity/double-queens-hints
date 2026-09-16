@@ -1,15 +1,18 @@
 from ..board import Board, CellState
-from ..deduction import Action, CellFact, Deduction, Premise, Rule
+from ..deduction import Action, Deduction, QueenConstraint, Rule, constraint_premises
+from .candidate_sets import derive_constraints
 
 
-def find_deductions(board: Board) -> list[Deduction]:
+def find_deductions(board: Board, constraints: tuple[QueenConstraint, ...] | None = None) -> list[Deduction]:
     result = []
-    for group in board.groups():
-        unknown = board.unknown(group.cells)
-        if len(board.queens(group.cells)) == 2 and unknown:
+    for constraint in derive_constraints(board) if constraints is None else constraints:
+        unknown = sorted(constraint.cells)
+        if constraint.queen_count == 0 and unknown:
             result.append(Deduction(
                 tuple(Action(c, CellState.EXCLUDED) for c in unknown),
                 Rule.COMPLETED_GROUP,
-                (Premise(tuple(CellFact(c, board.at(c)) for c in group.cells), group, 2),),
+                constraint_premises(constraint),
+                difficulty=3 if constraint.derivation is not None else 1,
+                constraint=constraint if constraint.derivation is not None else None,
             ))
     return result

@@ -186,7 +186,7 @@ def test_known_game_001_logical_replay(known_game_001: Board) -> None:
         assert replay_board.is_solved() == board.is_solved()
         replay_board.validate()
 
-@debug_boards(log_all_deductions=True)
+@debug_boards
 def test_known_game_002_empty_transcription(known_game_002: Board) -> None:
     board = known_game_002
     assert board.size == 10
@@ -195,6 +195,10 @@ def test_known_game_002_empty_transcription(known_game_002: Board) -> None:
     assert len(board.unknown(board.cells())) == 100
     assert not board.queens(board.cells())
     assert not board.excluded(board.cells())
+    # Preserve the former baseline explicitly: no M1/M2 rule can start this game.
+    from double_queens.rules import adjacency, candidate_sets, completed_group, forced_cells
+    assert all(not rule.find_deductions(board) for rule in
+               (adjacency, candidate_sets, completed_group, forced_cells))
 
     log.info('start', game="real 002")
     history: list[Deduction] = []
@@ -210,8 +214,26 @@ def test_known_game_002_empty_transcription(known_game_002: Board) -> None:
             board.apply(deduction)
             assert len(board.unknown(board.cells())) < unknown_before
     except ContradictionError:
-        log.info('contradiction', game="real 001", board=render_board(board))
+        log.info('contradiction', game="real 002", board=render_board(board))
         raise
 
     board.validate()
-    assert not find_deductions(board)
+    assert history  # M2's empty-board baseline had zero deductions.
+    assert history[0].difficulty == 3
+    assert len(board.unknown(board.cells())) < 100
+    if board.is_solved():
+        assert len(board.queens(board.cells())) == 20
+        log.info('solved', game='real 002', deductions=len(history),
+                 advanced=sum(d.difficulty == 3 for d in history),
+                 queens=len(board.queens(board.cells())), unknown=len(board.unknown(board.cells())))
+    else:
+        assert next_hint(board) is None
+        log.info('stalled', game='real 002', deductions=len(history),
+                 reason='No supported local deduction found', board=render_board(board))
+    with suspend_debug_tracing():
+        replay = make_known_game_002()
+        for deduction in history:
+            assert deduction == next_hint(replay)
+            replay.apply(deduction)
+        assert replay.state == board.state
+        replay.validate()

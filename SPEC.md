@@ -1483,193 +1483,470 @@ Then generalize carefully.
 
 ---
 
-# 29. Third milestone — Constraint interactions
+# 29. Third milestone — Advanced local constraint reasoning
 
-Once simple candidate sets work reliably, add interactions between constraints.
+Once residual candidate constraints work reliably, add interactions between
+constraints and reasoning over locally valid multi-queen placements.
+
+Milestone 3 builds on `QueenConstraint` introduced in Milestone 2.
+
+The objective is not to introduce a separate solving mechanism. Advanced
+reasoning must produce structured logical facts and deductions that can be
+consumed by the existing hint engine and by Milestone 1 and 2 rules.
 
 Targets include:
 
 - row/region confinement;
 - column/region confinement;
 - overlapping cardinality constraints;
-- subsets of candidate sets;
-- deductions produced by comparing two constraints.
+- subset and inclusion relationships between constraints;
+- locally valid placements of multiple queens inside a constraint;
+- facts shared by every locally valid placement;
+- derived `QueenConstraint` instances;
+- immediate compatibility between intersecting constraints;
+- deductions produced by comparing or refining constraints.
 
-Example concept:
+## 29.1 Constraint inclusion and cardinality differences
 
-```text
-Constraint A:
-exactly 1 queen among {A, B}
-
-Constraint B:
-exactly 1 queen among {A, B, C}
-
-Therefore:
-C = EXCLUDED
-```
-
-Another example:
-
-```text
-Constraint A:
-exactly 2 queens among {A, B, C}
-
-Constraint B:
-exactly 2 queens among {A, B, C, D}
-
-Therefore:
-D = EXCLUDED
-```
-
-Or:
-
-```text
-Constraint A:
-exactly 1 queen among {A, B}
-
-Constraint B:
-exactly 2 queens among {A, B, C}
-
-Therefore:
-C = QUEEN
-```
-
-These are generic cardinality deductions and can provide a powerful foundation for advanced hints.
-
-However, each derived deduction must retain a clear explanation showing which constraints were compared.
-
----
-
-# 30. Constraint normalization
-
-As the engine becomes more advanced, consider representing known facts as normalized cardinality constraints:
-
-```python
-CardinalityConstraint(
-    cells=frozenset({...}),
-    queen_count=N,
-    sources=[...]
-)
-```
+Constraints may be compared algebraically when their candidate sets overlap
+through inclusion.
 
 For example:
 
-```text
-Q(A) + Q(B) + Q(C) = 1
-```
+    Constraint A:
+    exactly 1 queen among {A, B}
 
-A confirmed queen can simplify the constraint.
+    Constraint B:
+    exactly 1 queen among {A, B, C}
 
-If:
+    Therefore:
+    C = EXCLUDED
 
-```text
-A = QUEEN
-```
+Likewise:
+
+    Constraint A:
+    exactly 2 queens among {A, B, C}
+
+    Constraint B:
+    exactly 2 queens among {A, B, C, D}
+
+    Therefore:
+    D = EXCLUDED
+
+And:
+
+    Constraint A:
+    exactly 1 queen among {A, B}
+
+    Constraint B:
+    exactly 2 queens among {A, B, C}
+
+    Therefore:
+    C = QUEEN
+
+More generally, if:
+
+    A.cells ⊆ B.cells
+
+then the cardinality of `B.cells - A.cells` is:
+
+    B.queen_count - A.queen_count
+
+provided the compared constraints are valid and the relationship directly
+supports that conclusion.
+
+This may itself produce another `QueenConstraint` rather than an immediate
+cell action.
+
+For example:
+
+    A = exactly 1 queen among {A, B}
+    B = exactly 2 queens among {A, B, C, D}
+
+    Therefore:
+
+    exactly 1 queen among {C, D}
+
+Constraint interaction should therefore be capable of producing reusable
+logical facts, not only immediate QUEEN or EXCLUDED actions.
+
+## 29.2 Local valid placements
+
+Some deductions depend on the possible arrangements of multiple queens inside
+a small residual constraint.
+
+Given:
+
+    QueenConstraint(cells=C, queen_count=k)
+
+the hint engine may enumerate the locally valid placements:
+
+    P ⊆ C
+    |P| = k
+
+subject to immediately applicable puzzle constraints.
+
+At minimum:
+
+- queens inside the placement may not touch;
+- existing queens and exclusions must be respected;
+- the source constraint's residual cardinality must be respected.
+
+Local placement generation must be deterministic.
+
+This is local constraint reasoning, not global search.
+
+It is valid to ask:
+
+    In which ways can the remaining queens fit inside this constraint?
+
+It is not valid to ask:
+
+    If this cell were a queen, can the entire puzzle eventually be solved?
+
+## 29.3 Facts shared by every local placement
+
+Let `P` be the complete set of locally valid placements for a constraint.
+
+If a candidate appears in every placement:
+
+    for every p in P:
+        cell in p
 
 then:
 
-```text
-Q(B) + Q(C) = 0
-```
+    cell = QUEEN
+
+If a candidate appears in no placement:
+
+    for every p in P:
+        cell not in p
+
+then:
+
+    cell = EXCLUDED
+
+An external unknown cell may also be excluded if it necessarily touches a
+queen regardless of which local placement is correct:
+
+    for every p in P:
+        some queen in p touches cell
 
 therefore:
 
-```text
-B = EXCLUDED
-C = EXCLUDED
-```
+    cell = EXCLUDED
 
-If:
+These are generic placement deductions.
 
-```text
-A = EXCLUDED
-```
+Do not create shape-specific rules when the same deduction can be expressed
+through this generic reasoning.
+
+## 29.4 Derived subconstraints
+
+Local placements may imply a stable queen cardinality for a subset of cells.
+
+Given a subset `S`, if:
+
+    for every placement p:
+        |p ∩ S| = n
+
+then the engine may derive:
+
+    QueenConstraint(S, n)
+
+For example, if the valid placements are:
+
+    {A, C}
+    {A, D}
+    {B, C}
+    {B, D}
 
 then:
 
-```text
-Q(B) + Q(C) = 1
-```
+    exactly 1 queen among {A, B}
+    exactly 1 queen among {C, D}
 
-Constraint simplification should preserve provenance so explanations remain possible.
+These derived `QueenConstraint` instances are first-class logical facts.
 
-Do not allow normalization to turn the engine into an opaque theorem prover.
+They may be consumed by later rules exactly like residual row, column, or
+region constraints, provided their provenance is preserved.
+
+This is particularly important because existing Milestone 2 rules may already
+know how to use the derived constraint.
+
+For example:
+
+    derived QueenConstraint({A, B}, 1)
+        ↓
+    COMMON_NEIGHBOR_EXCLUSION
+        ↓
+    cells touching both A and B are excluded
+
+Prefer deriving reusable structured knowledge over duplicating elementary
+consequences in advanced rules.
+
+## 29.5 Constraint partition and capacity reasoning
+
+Local placement analysis may reveal that different parts of a candidate set
+have forced cardinalities.
+
+For example, suppose a region still needs two queens and its candidates consist
+of:
+
+    one isolated candidate A
+
+    and
+
+    two mutually touching candidates {B, C}
+
+Because `B` and `C` cannot both contain queens:
+
+    {B, C} contains at most 1 queen
+
+The region still requires two queens, therefore:
+
+    A = QUEEN
+    exactly 1 queen among {B, C}
+
+This should preferably emerge from generic local-placement and derived-
+constraint reasoning rather than from a special rule for this particular
+shape.
+
+## 29.6 Immediate cross-constraint compatibility
+
+A placement that is valid inside one constraint may be rejected when it
+directly violates another intersecting structured constraint.
+
+Allowed immediate conflicts include:
+
+- queen adjacency;
+- too many queens in a row;
+- too many queens in a column;
+- too many queens in a region;
+- insufficient remaining capacity in an intersecting constraint;
+- a directly contradictory cardinality relationship.
+
+For example:
+
+    A region needs two queens.
+
+    If candidate A were part of a local placement,
+    the only possible second regional queen would be B.
+
+    A and B belong to the same row.
+
+    That row cannot contain both queens.
+
+    Therefore that local placement is invalid.
+
+This remains local constraint propagation.
+
+Do not recursively explore future deductions in order to decide whether a
+local placement is valid.
+
+## 29.7 Interaction with earlier milestones
+
+Milestone 3 complements rather than replaces Milestones 1 and 2.
+
+A normal solving chain may look like:
+
+    local placement analysis
+        ↓
+    derived QueenConstraint
+        ↓
+    COMMON_NEIGHBOR_EXCLUSION
+        ↓
+    cell exclusions
+        ↓
+    FORCED_REMAINING_CELLS
+        ↓
+    queen placement
+        ↓
+    QUEEN_ADJACENCY
+
+Advanced rules should not duplicate elementary rules when they can instead
+produce information that makes those rules applicable.
+
+The hint engine remains the single source of logical solving intelligence.
 
 ---
 
-# 31. Provenance
+# 30. Constraint normalization and lifecycle
 
-Every derived constraint should retain information about where it came from.
+`QueenConstraint` is the normalized cardinality representation used by the
+logical engine.
 
-Example:
+Conceptually:
 
-```python
-CardinalityConstraint(
-    cells={L4C7, L4C8},
-    queen_count=1,
-    sources=[
-        RowConstraint(row=4)
-    ]
-)
-```
+    QueenConstraint(
+        cells=frozenset({...}),
+        queen_count=N,
+        source=...,
+    )
 
-A derived constraint might contain:
+represents:
 
-```python
-sources=[
-    ExistingConstraint(...),
-    RegionConstraint(...)
-]
-```
+    exactly N queens among these candidate cells
 
-This allows explanations such as:
+Residual row, column, and region constraints are examples of
+`QueenConstraint`.
 
-```text
-Row 4 still needs one queen, and its only available cells are L4C7 and L4C8.
+Milestone 3 may additionally derive `QueenConstraint` instances from other
+structured constraints or local placement analysis.
 
-Therefore exactly one of those two cells must contain a queen.
-```
+A confirmed queen or exclusion may simplify the effective residual constraint.
 
-Then:
+For example:
 
-```text
-L5C7 touches both possible positions.
+    exactly 1 queen among {A, B, C}
 
-Therefore L5C7 cannot contain a queen.
-```
+    A = QUEEN
 
-This is much better than:
+implies:
 
-```text
-L5C7 is impossible.
-```
+    exactly 0 queens among {B, C}
+
+therefore:
+
+    B = EXCLUDED
+    C = EXCLUDED
+
+Likewise:
+
+    exactly 1 queen among {A, B, C}
+
+    A = EXCLUDED
+
+reduces to:
+
+    exactly 1 queen among {B, C}
+
+Constraint normalization and simplification must remain deterministic and must
+preserve enough provenance for the resulting deduction to be explained.
+
+Do not allow normalization to become an opaque theorem prover.
 
 ---
 
-# 32. Avoid fake logical hints
+# 31. Provenance for derived constraints and placements
 
-A critical project requirement:
+Every derived constraint and advanced deduction must retain structured
+information describing where it came from.
 
-Do NOT implement hints by:
+Evidence must be captured when the deduction is created.
 
-1. solving the puzzle exhaustively;
-2. inspecting the solution;
-3. selecting a correct cell;
-4. inventing a plausible explanation afterward.
+A renderer must not need to rerun the solving algorithm against the current
+board in order to reconstruct the explanation.
 
-That would produce correct-looking hints without guaranteeing that the explanation logically proves the conclusion.
+Depending on the deduction, structured provenance may include:
+
+- source `QueenConstraint` instances;
+- original row, column, or region premises;
+- compared constraints;
+- candidate cells;
+- locally valid placements;
+- locally rejected placements;
+- the immediate structured reason a placement was rejected;
+- adjacency relationships;
+- subset or inclusion relationships;
+- derived subconstraints;
+- resulting actions.
+
+For example:
+
+    Row 4 still needs one queen.
+
+    Its only available cells are L4C7 and L4C8.
+
+    Therefore:
+
+    exactly one queen is in {L4C7, L4C8}.
+
+This may be represented as:
+
+    QueenConstraint({L4C7, L4C8}, 1)
+
+with provenance pointing back to the residual row constraint.
+
+A later deduction may then state:
+
+    L5C7 touches both possible queen positions.
+
+    Therefore L5C7 cannot contain a queen.
+
+The proof chain is therefore:
+
+    source constraint
+        ↓
+    derived QueenConstraint
+        ↓
+    named logical rule
+        ↓
+    deduction
+
+rather than:
+
+    L5C7 is impossible.
+
+Derived constraints are reusable logical facts, but their derivation must never
+become invisible.
+
+---
+
+# 32. Local logical reasoning vs. search
+
+A critical project requirement is that human-facing hints are derived from
+logical evidence rather than extracted from a solved board.
+
+The hint engine may enumerate finite local queen placements inside a row,
+column, region, or derived `QueenConstraint` when those placements are used
+directly as structured evidence for a deduction.
+
+Local placement reasoning may:
+
+- compare structured constraints;
+- enumerate placements within a local constraint;
+- apply immediate adjacency and cardinality restrictions;
+- inspect immediately intersecting row, column, region, or derived constraints;
+- reject a placement because it directly violates one of those constraints;
+- derive new `QueenConstraint` facts;
+- produce queens or exclusions that hold across all valid local placements.
+
+This is considered logical constraint propagation, not search.
+
+The human-facing hint engine must NOT:
+
+1. assume a candidate and recursively run the hint engine;
+2. assume a candidate and call `solve_logically()`;
+3. explore arbitrary chains of hypothetical future deductions;
+4. perform global backtracking;
+5. enumerate complete board solutions;
+6. use SAT/SMT or equivalent global solving to generate a hint;
+7. inspect a known solution and invent an explanation afterward.
+
+In particular, do NOT implement hints by:
+
+    solve the puzzle exhaustively
+        ↓
+    inspect the solution
+        ↓
+    select a correct cell
+        ↓
+    invent a plausible explanation
 
 Instead:
 
-```text
-Premises
-   ↓
-Named logical rule
-   ↓
-Deduction
-```
+    structured premises
+        ↓
+    named logical rule
+        ↓
+    structured deduction
 
-The exhaustive solver may verify the deduction afterward, but it must not secretly generate it.
+A deduction must be justified by bounded local evidence captured in its
+provenance.
+
+An exhaustive solver may eventually exist as an independent validation tool,
+but it must not secretly generate human-facing hints.
 
 ---
 

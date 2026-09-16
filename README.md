@@ -1,6 +1,7 @@
 # Double Queens Hint
 
-Milestone 2: elementary and candidate-set hints with structured, replayable proofs.
+Milestone 3: elementary, candidate-set, and local constraint hints with
+structured, replayable proofs.
 
 ## Origin: the L6C5 incident
 
@@ -70,12 +71,12 @@ any of these commands to inspect the debug output while tests run.
   `Rule`. Group evidence records quota, group membership, and every observed
   state. Adjacency evidence records the queen and unknown targets. These
   facts are the structured explanation; consequences are separate actions.
-- `rules/`: forced remaining cells, queen adjacency, completed groups, and
-  common-neighbor exclusion.
+- `rules/`: forced remaining cells, queen adjacency, completed groups,
+  common-neighbor exclusion, and advanced local constraint reasoning.
 - `QueenConstraint(cells, queen_count, source=None)` normalizes cells into a
   frozen set and validates the exact count. `derive_constraints(board)` returns
   each row, column, and region's unknown cells and remaining queen quota, with
-  a full `Premise` snapshot as its source. No candidate combinations are searched.
+  a full `Premise` snapshot as its source.
   Common-neighbor deductions carry this constraint and `AdjacencyFact` pairs
   connecting each excluded target to every candidate. Target states and source
   facts participate in the existing stale-evidence checks.
@@ -83,6 +84,8 @@ any of these commands to inspect the debug output while tests run.
   Queries validate without mutation. Ranking uses difficulty, explicit rule
   priority (forced queens, adjacency, completed groups, common neighbors), evidence count,
   action count, then stable coordinate/source tie breakers.
+  Discovery returns the M1/M2 tier whenever it has deductions; otherwise it
+  evaluates M3 (difficulty 3). Structural proof tie breakers are deterministic.
 - `Board.apply`: checks evidence freshness, rejects state conflicts, validates
   the resulting board, then commits atomically. It applies supplied actions
   without additional propagation. It is not a proof verifier for arbitrary
@@ -111,17 +114,61 @@ unknown cells do not need cosmetic exclusion marks. Stale deductions raise
 raise errors rather than being reported as a logical stall.
 
 Local validation does not establish global solvability. Unsupported situations
-return `LOGIC_STALLED`. Candidate reasoning currently derives only residual
-group constraints and excludes unknown cells adjacent to every candidate of
-a constraint requiring at least one queen. These deductions have difficulty 2
-and four progressive hint levels. There is no guessing, backtracking,
-constraint interaction, screenshot ingestion, exhaustive solver, or GUI.
+return `LOGIC_STALLED`. There is no guessing, backtracking, screenshot ingestion,
+exhaustive solver, or GUI.
 
 The real-game fixture still places L6C5 at step 1. Milestone 1 stalled after
 7 deductions; milestone 2 solves it in 32 deductions, including 3 common-neighbor
 deductions. Its complete history is checked by replaying the public hint API.
 
-Next step, only after explicit approval: milestone 3 constraint interactions.
+The initially empty `known_game_002` stalled immediately with M2. M3 currently
+solves it in 55 deductions, 16 requiring advanced evidence. All 20 queens are
+placed; two unknown cells remain because solved status does not require cosmetic
+exclusions. The test requires progress and deterministic replay, not a stored
+solution or a particular human solving order.
+
+## Local constraints and proof lifecycle
+
+`derive_inclusions(constraints)` subtracts directly included candidate sets
+and their counts. `analyze_local_placements(board, constraint, constraints=None)`
+enumerates every placement of at most two queens inside that single residual
+constraint. Its input must be a current, proven constraint, such as one returned
+by `derive_constraints`; it does not certify arbitrary caller-invented facts.
+
+Each placement is checked for queen adjacency and directly intersecting quotas.
+An intersecting constraint is impossible if the placement overfills it or leaves
+too few available cells after accounting for unselected source candidates and
+immediately attacked cells. No Board is copied or mutated, and no hypothetical
+placement calls the hint engine or solver. An empty valid-placement set raises
+`ContradictionError`; it cannot justify conclusions by vacuous agreement.
+
+`derive_subconstraint(analysis, cells)` returns a constraint when all recorded
+placements agree on its cardinality, otherwise `None`.
+`derive_local_constraints(board)` computes a single deterministic pass of
+inclusions and placement-derived facts. Automatic subsets are singletons,
+row/column/region intersections, adjacency components, and their complements.
+It does not enumerate arbitrary subsets or repeatedly combine facts to closure.
+Inclusion facts participate in immediate placement checks; placement-derived
+facts are then consumed by the existing forced-cell, completed-group, and
+common-neighbor rules. A separate `LOCAL_PLACEMENT_EXCLUSION` rule handles
+external cells attacked in every placement by potentially different queens.
+
+Constraints are ephemeral per-query facts, recomputed after each actual action.
+`QueenConstraint.derivation` holds an immutable `InclusionProof` or
+`PlacementSubsetProof`. `LocalPlacements` records accepted placements, checked
+constraints, and `PlacementRejection` records with a `PlacementConflict` reason,
+counts, available cells, or adjacency witnesses. `PlacementCoverage` records an
+attacking queen for each placement when excluding an external cell.
+
+Proof snapshots include the consulted groups and candidate neighborhoods.
+They are flattened into ordinary `Premise` values for existing stale-evidence
+and atomic-application checks. Renderers consume the saved proof, including after
+the board changes, and do not reconstruct it by solving again. Debug rendering
+shows nested source proofs, valid placements, and immediate rejection reasons.
+All four progressive hint levels and the shared debug region palette apply.
+
+More reasoning, if needed by another fixture, requires a separately approved
+milestone. No later milestone is implemented here.
 
 ## Terminal alignment
 

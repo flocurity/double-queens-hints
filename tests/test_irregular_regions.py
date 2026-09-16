@@ -90,7 +90,12 @@ def test_layouts_are_contiguous_irregular_and_have_valid_witness(irregular_layou
         assert visited == cells
     solved = irregular_layout.board({c: Q if c in irregular_layout.queens else X for c in board.cells()})
     assert solved.is_solved()
-    assert find_deductions(board) == []
+    # M1/M2 stalled here. Any newly available M3 actions must respect the
+    # independent, hand-written witness for each rotated irregular layout.
+    deductions = find_deductions(board)
+    assert all(d.difficulty == 3 for d in deductions)
+    assert all((a.cell in irregular_layout.queens) == (a.state == Q)
+               for d in deductions for a in d.actions)
 
 
 @debug_boards
@@ -153,7 +158,10 @@ def test_row_column_region_rules_coexist_and_rank_explicitly(irregular_layout):
     board = irregular_layout.board(changes)
     before = board.state
     deductions = find_deductions(board)
-    assert {d.rule for d in deductions} == set(Rule)
+    assert {d.rule for d in deductions} == {
+        Rule.FORCED_REMAINING_CELLS, Rule.COMPLETED_GROUP,
+        Rule.QUEEN_ADJACENCY, Rule.COMMON_NEIGHBOR_EXCLUSION,
+    }
     for deduction in deductions:
         for action in deduction.actions:
             assert (action.cell in irregular_layout.queens) == (action.state == Q)
