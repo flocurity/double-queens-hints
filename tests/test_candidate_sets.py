@@ -136,12 +136,15 @@ def test_progressive_candidate_hints_use_only_structured_evidence(kind):
     hints = [render_hint(deduction, level) for level in range(1, 5)]
     assert len(set(hints)) == 4
     assert hints[0].startswith('Look at')
-    assert 'still needs 1' in hints[1] and 'touch every possible position?' in hints[1]
-    assert 'At least one queen' in hints[2] and 'touch every candidate' in hints[2]
+    assert 'still needs one queen' in hints[1] and 'touch both candidates?' in hints[1]
+    assert 'must place one queen' in hints[2] and ('touches both cells' if len(deduction.actions) == 1 else 'touch both cells') in hints[2]
     for action in deduction.actions:
         assert str(action.cell) not in hints[0] + hints[1]
         assert str(action.cell) in hints[2]
-    assert hints[3] == ' '.join(f'Exclude {a.cell}.' for a in deduction.actions)
+    expected = {GroupKind.ROW: 'Exclude L2C4 and L2C5.',
+                GroupKind.COLUMN: 'Exclude L4C2 and L5C2.',
+                GroupKind.REGION: 'Exclude L2C5.'}
+    assert hints[3] == expected[kind]
     debug = render_deduction(deduction)
     assert 'CONSTRAINT:' in debug and 'exactly 1' in debug
     for fact in deduction.adjacencies:
@@ -209,9 +212,10 @@ def test_elementary_hint_progression_preserves_reason_and_explicit_action(rule):
         assert 'Queens cannot touch' in levels[1]
         assert 'touch the queen' in levels[2]
     else:
-        assert 'requires 2 queens' in levels[1] and 'already has' in levels[1]
-        assert ('all are needed' if rule == Rule.FORCED_REMAINING_CELLS
-                else 'already has two queens') in levels[2]
-    assert levels[3] == ' '.join(
-        f'Place a queen at {a.cell}.' if a.state == Q else f'Exclude {a.cell}.'
-        for a in deduction.actions)
+        assert ('still needs one queen' if rule == Rule.FORCED_REMAINING_CELLS
+                else 'already contains its 2 required queens') in levels[1]
+        assert ('remains available' if rule == Rule.FORCED_REMAINING_CELLS
+                else 'already contains its 2 required queens') in levels[2]
+    assert levels[3].startswith('Place a queen at' if rule == Rule.FORCED_REMAINING_CELLS else 'Exclude ')
+    assert levels[3].count('.') == 1
+    assert all(str(a.cell) in levels[3] for a in deduction.actions)

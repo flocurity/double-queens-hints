@@ -79,7 +79,7 @@ def test_board_and_all_region_hint_levels_share_one_palette_glyph():
     ]
     assert glyph in rendered_board
     assert hints[0] == f"Look at region {glyph}."
-    assert hints[1].startswith(f"Region {glyph} requires 2 queens")
+    assert hints[1].startswith(f"Region {glyph} still needs one queen")
     assert f"in region {glyph}" in hints[2]
     assert hints[3] == "Place a queen at L1C4."
     assert glyph not in hints[3]
@@ -98,7 +98,7 @@ def test_non_emoji_context_keeps_text_board_and_region_hints():
     assert "region_0" in rendered
     assert not any(glyph in rendered for glyph in context.palette.glyphs)
     assert hints[0] == "Look at region region_0."
-    assert hints[1].startswith("Region region_0 requires 2 queens")
+    assert hints[1].startswith("Region region_0 still needs one queen")
     assert "in region region_0" in hints[2]
     assert hints[3] == "Place a queen at L1C4."
 

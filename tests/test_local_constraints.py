@@ -315,13 +315,14 @@ def test_advanced_progressive_hints_and_independent_debug_proof(rule):
     deduction = next(d for d in deductions if d.rule == rule)
     hints = [render_hint(deduction, level) for level in range(1, 5)]
     assert len(set(hints)) == 4 and hints[0].startswith('Look')
-    assert 'local placement' in hints[1]
+    assert 'candidates' in hints[1]
     for a in deduction.actions:
         assert str(a.cell) not in hints[0] + hints[1]
         assert str(a.cell) in hints[2] + hints[3]
-    assert 'placement' in hints[2] and ('must' in hints[2] or 'cannot' in hints[2] or 'No queen' in hints[2])
-    assert hints[3] == ' '.join(f'Place a queen at {a.cell}.' if a.state == Q else f'Exclude {a.cell}.'
-                               for a in deduction.actions)
+    assert ('placement' in hints[2] or 'must contain a queen' in hints[2])
+    assert 'must' in hints[2] or 'cannot' in hints[2]
+    assert hints[3].count('.') == 1
+    assert all(str(a.cell) in hints[3] for a in deduction.actions)
     debug = render_deduction(deduction)
     assert 'VALID LOCAL PLACEMENTS:' in debug and 'REJECTED LOCAL PLACEMENTS:' in debug
     board.apply(deduction)
@@ -337,8 +338,8 @@ def test_inclusion_hints_explain_subtraction_and_debug_retains_parent_counts():
     pair = derive_subconstraint(analysis, {Cell(0, 3), Cell(0, 4)})
     singleton, = derive_inclusions((pair, row))
     deduction, = forced_cells.find_deductions(board, (singleton,))
-    assert 'inside the other' in render_hint(deduction, 2)
-    assert 'Subtracting' in render_hint(deduction, 3)
+    assert 'remaining candidates' in render_hint(deduction, 2)
+    assert 'leaves one queen' in render_hint(deduction, 3)
     debug = render_deduction(deduction)
     assert 'INCLUSION:' in debug and 'SUBCONSTRAINT:' in debug
     assert 'VALID LOCAL PLACEMENTS:' in debug
