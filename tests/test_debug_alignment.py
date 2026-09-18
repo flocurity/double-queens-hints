@@ -1,123 +1,86 @@
-"""Regression coverage for terminal columns and presentation coordinates."""
+"""Three-column colored cells, with independent checks of content and styles."""
 import pytest
+from rich.console import Console
+from rich.text import Text
 
-from debug_boards import debug_boards
-from double_queens import Board, Cell, CellState, render_board
-from double_queens.hints import debug
-from double_queens.log import get_logger
-
-log = get_logger(__name__)
+from double_queens import Board, Cell, CellState, DebugRenderContext, render_board
 
 
-def observed_width(text: str) -> int:
-    # Independent, fixed display model for this test's known glyphs.
-    width = len(text)
-    for glyph, columns in {'🔴': 2, '🤍': 2, '🔵': 2, '🟢': 2,
-                           '👑': 2, '❌': 2, '界': 2,
-                           'e\u0301': 1, '👩\u200d💻': 2}.items():
-        width += text.count(glyph) * (columns - len(glyph))
-    return width
+def cell_style(text, row, col, size):
+    lines = text.plain.splitlines(keepends=True)
+    offset = sum(map(len, lines[:row + 1])) + max(2, len(str(size))) + 1 + col * 3
+    return text.get_style_at_offset(Console(), offset)
 
 
-def pipe_columns(line: str) -> list[int]:
-    return [observed_width(line[:i]) for i, char in enumerate(line) if char == '|']
-
-
-@pytest.mark.parametrize('palette', [
-    ('🔴', '🤍', '🔵', '🟢'),
-    ('·', '界', 'e\u0301', '👩\u200d💻'),
-])
-@debug_boards
-def test_mixed_glyphs_align_in_terminal(monkeypatch, palette):
-    monkeypatch.setattr(debug, '_COLORS', palette)
-    regions = ['AABB', 'ACBB', 'ACDD', 'CCDD']
-    state = [[CellState.UNKNOWN] * 4 for _ in range(4)]
-    state[0][0] = CellState.QUEEN
-    state[3][3] = CellState.EXCLUDED
-    board = Board(regions, state)
+def test_colored_cells_preserve_states_geometry_and_checkerboard():
+    board = Board(['AABB', 'ACBB', 'ACDD', 'CCDD'],
+                  [[1, 0, -1, 0], [0]*4, [0]*4, [0]*4])
     before = board.state
-    rendered = render_board(board, use_emojis=True, terminal_profile='unicode',
-                            glyph_widths={'👩\u200d💻': 2})
-    log.info('Mixed region glyphs:', board=rendered)
-    lines = rendered.splitlines()
-    expected_columns = pipe_columns(lines[0])
-    assert len(expected_columns) == 1
-    assert all(pipe_columns(line) == expected_columns for line in lines)
-    for r, source in enumerate(regions):
-        expected = [palette[ord(region) - ord('A')] for region in source]
-        if r == 0:
-            expected[0] = '👑'
-        if r == 3:
-            expected[3] = '❌'
-        assert lines[r + 1].split('|')[0][3:] == ''.join(
-            glyph + ' ' * (2 - observed_width(glyph)) for glyph in expected)
+    context = DebugRenderContext.randomized(seed=42, use_emojis=True)
+    rendered = render_board(board, context=context)
+    text = Text.from_ansi(rendered)
+    lines = text.plain.splitlines()
+    assert lines[0] == '    1  2  3  4   Queen(s)'
+    for r in range(4):
+        assert lines[r + 1].startswith(f'{r + 1:02d} ')
+        for c in range(4):
+            marker = {CellState.UNKNOWN: ' ', CellState.QUEEN: 'Q', CellState.EXCLUDED: '×'}[board.at(Cell(r, c))]
+            assert lines[r + 1][3+c*3:6+c*3] == f' {marker} '
+            color = context.color_for(board.regions[r][c])
+            rgb = tuple(int(color[i:i+2], 16) for i in (1, 3, 5))
+            expected = tuple(round(v * .93) for v in rgb) if (r+c) % 2 == 0 else rgb
+            style = cell_style(text, r, c, 4)
+            assert tuple(style.bgcolor.get_truecolor()) == expected
+            assert style.bold
+    assert not any(g in text.plain for g in ('|', '─', '│', '🔴', '👑', '❌'))
     assert board.state == before
-    assert 'Color Region Legend' not in rendered
+    assert render_board(board, context=context) == rendered
 
 
-@debug_boards
-def test_row_numbers_are_padded_without_changing_cell_coordinates():
-    board = Board([[str(r)] * 12 for r in range(12)])
-    rendered = render_board(board, use_emojis=False)
-    lines = rendered.splitlines()
-    assert [line.split()[0] for line in lines[1:]] == [
-        f'{r:02d}' for r in range(1, 13)
-    ]
-    assert all(pipe_columns(line) == pipe_columns(lines[0]) for line in lines)
+@pytest.mark.parametrize('size', [1, 9, 10, 13])
+def test_compact_dimensions_and_exact_grid_width(size):
+    board = Board([[str(r)] * size for r in range(size)])
+    lines = Text.from_ansi(render_board(board, use_emojis=True)).plain.splitlines()
+    assert len(lines) == size + 1
+    assert lines[0] == '   ' + ''.join(f'{c:^3}' for c in range(1, size+1)) + '  Queen(s)'
+    for r, line in enumerate(lines[1:], 1):
+        assert line == f'{r:02d} ' + ' ' * (size * 3) + '  -'
     assert str(Cell(5, 4)) == 'L6C5'
-    assert board.row(0)[0] == Cell(0, 0)
 
 
-@pytest.mark.parametrize('white_width', [1, 2])
-@debug_boards
-def test_vscode_padding_uses_calibrated_widths(monkeypatch, white_width):
-    palette = ('🔴', '🔵', '⚪', '🤍', '🩶', '🩵')
-    monkeypatch.setattr(debug, '_COLORS', palette)
-    monkeypatch.setenv('TERM_PROGRAM', 'vscode')
-    board = Board([list('ABCDEF')] * 6)
-    rendered = render_board(board, use_emojis=True, glyph_widths={'🤍': white_width})
-    log.info('VS Code calibrated region cells:', board=rendered)
-    expected_widths = (2, 2, 2, white_width, 1, 1)
-    assert rendered.splitlines()[1] == '01 ' + ''.join(
-        glyph + ' ' * (2 - width) for glyph, width in zip(palette, expected_widths)) + '|-'
-    # The one-column compensation accumulates correctly across a full row.
-    simulated = len(rendered.splitlines()[1].split('|')[0])
-    for glyph, width in zip(palette, expected_widths):
-        simulated += width - len(glyph)
-    assert simulated == len(rendered.splitlines()[0].split('|')[0])
-    standard = render_board(board, use_emojis=True, terminal_profile='unicode')
-    assert standard.splitlines()[1] == '01 ' + ''.join(palette) + '|-'
+@pytest.mark.parametrize('profile', ['unicode', 'vscode', 'auto'])
+def test_region_emoji_metrics_do_not_affect_grid(profile):
+    board = Board([list('ABC')] * 3)
+    context = DebugRenderContext.randomized(seed=1, use_emojis=True,
+        glyphs=('🤍', '🩶', '🩵'), terminal_profile=profile, glyph_widths={'🤍': 1})
+    text = Text.from_ansi(render_board(board, context=context))
+    assert text.plain.splitlines()[1] == '01 ' + ' ' * 9 + '  -'
+    assert all(cell_style(text, 0, c, 3).bgcolor is not None for c in range(3))
 
 
-@debug_boards
-def test_width_overrides_cover_summary_and_do_not_leak(monkeypatch):
-    monkeypatch.setattr(debug, '_COLORS', ('🤍', '🔴', '🔵'))
-    board = Board([list('AAA'), list('BBB'), list('CCC')], [[1, 0, 0], [0]*3, [0]*3])
-    calibrated = render_board(board, use_emojis=True, terminal_profile='unicode', glyph_widths={'🤍': 1})
-    standard = render_board(board, use_emojis=True, terminal_profile='unicode')
-    assert calibrated.splitlines()[1] == '01 👑🤍 🤍 |🤍'
-    assert standard.splitlines()[1] == '01 👑🤍🤍|🤍'
-    assert debug._COLORS == ('🤍', '🔴', '🔵')
+def test_symbol_width_override_preserves_three_columns():
+    board = Board(['AAA'] * 3, [[1, -1, 0], [0]*3, [0]*3])
+    text = Text.from_ansi(render_board(board, use_emojis=True, glyph_widths={'×': 2})).plain
+    assert text.splitlines()[1].startswith('01  Q ×    ')
 
 
-def test_compact_nine_column_contract():
-    board = Board([[str(r)] * 9 for r in range(9)])
-    rendered = render_board(board, use_emojis=True, terminal_profile='unicode')
-    lines = rendered.splitlines()
-    assert lines[0] == '   1 2 3 4 5 6 7 8 9 |Queen(s)'
-    assert lines[1] == '01 ' + '🔴' * 9 + '|-'
-    assert len(lines) == 10
-    assert all(line.count('|') == 1 for line in lines)
-    assert 'Line' not in rendered and 'Col' not in rendered and ':---' not in rendered
-    assert all(' ' not in line[3:].split('|')[0] for line in lines[1:])
+def test_legend_and_summary_use_same_region_background():
+    board = Board(['AAA', 'BBB', 'CCC'], [[1, 0, 1], [0]*3, [0]*3])
+    context = DebugRenderContext.randomized(seed=42, use_emojis=True)
+    text = Text.from_ansi(render_board(board, context=context))
+    plain = text.plain
+    assert plain.splitlines()[1].endswith('  A  ×2')
+    assert text.get_style_at_offset(Console(), plain.index('A')).bgcolor.name == context.color_for('A')
+    assert 'Color Region Legend' not in plain
+    assert 'Color Region Legend' in render_board(board, use_emojis=True, legend=True)
 
 
-def test_text_cells_align_with_headers_and_keep_state_and_region():
-    board = Board(['ABC', 'ABC', 'ABC'], [[1, -1, 0], [0]*3, [0]*3])
-    lines = render_board(board, use_emojis=False).splitlines()
-    assert lines == ['   1   2   3 |Queen(s)', '01 Q A X B C |A',
-                     '02 A   B   C |-', '03 A   B   C |-']
-    assert all(pipe_columns(line) == [13] for line in lines)
+def test_text_fallback_preserves_names_and_states_without_ansi():
+    board = Board(['ABC'] * 3, [[1, -1, 0], [0]*3, [0]*3])
+    rendered = render_board(board, use_emojis=False)
+    assert '\x1b' not in rendered
+    assert '|' not in rendered
+    assert 'Q A' in rendered and 'X B' in rendered and 'C' in rendered
 
 
 @pytest.mark.parametrize('options', [{'terminal_profile': 'invalid'}, {'glyph_widths': {'': 2}},

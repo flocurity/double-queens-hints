@@ -160,7 +160,7 @@ def test_candidate_hints_share_debug_region_palette():
     context = DebugRenderContext.randomized(seed=31, use_emojis=True)
     text = render_board(board, context=context)
     glyph = context.glyph_for('0')
-    assert glyph in text
+    assert '\x1b[' in text
     for level in (1, 2, 3):
         assert glyph in render_hint(deduction, level, region_display=context.display_region)
     assert render_hint(deduction, 4, region_display=context.display_region) == render_hint(deduction, 4)

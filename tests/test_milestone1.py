@@ -220,12 +220,12 @@ def test_debug_board_dynamic_and_pure():
     board = board_with([(0, 0, Q), (0, 3, Q), (1, 0, X)], size=13)
     before = board.state
     rendered = render_board(board, use_emojis=True)
-    assert rendered.splitlines()[0].split('|')[0].endswith('10111213')
+    assert '10 11 12 13' in rendered.splitlines()[0]
     assert rendered.splitlines()[-1].startswith('13 ')
     assert "Color Region Legend" not in rendered
     assert not any(line.startswith("- ") for line in rendered.splitlines())
     assert "Queen(s)" in rendered and "×2" in rendered
-    assert "👑" in rendered and "❌" in rendered and "|-" in rendered
+    assert " Q " in rendered and "×" in rendered and "  -" in rendered
     assert board.state == before
 
 
@@ -293,7 +293,8 @@ def test_debug_queen_summary_tracks_different_regions():
     regions = [[str(c) for c in range(8)] for _ in range(8)]
     board = board_with([(0, 0, Q), (0, 3, Q)], regions=regions)
     line = render_board(board, use_emojis=True).splitlines()[1]
-    assert line.split('|')[1] == '🔴  🟡'
+    from rich.text import Text
+    assert Text.from_ansi(line).plain.endswith(' 0    3 ')
 
 
 @debug_boards
@@ -304,16 +305,16 @@ def test_debug_board_text_mode():
     assert 'Q region_0' in rendered
     assert 'X region_1' in rendered
     assert 'region_2' in rendered
-    assert rendered.splitlines()[1].split('|')[1] == 'region_0 x2'
+    assert rendered.splitlines()[1].endswith('  region_0 x2')
 
 
 @debug_boards
-def test_debug_board_emoji_cells_have_no_region_labels():
+def test_debug_board_colored_cells_use_state_symbols():
     board = board_with([(0, 0, Q), (1, 0, X)])
     rendered = render_board(board, use_emojis=True)
     grid = '\n'.join(rendered.splitlines()[1:])
-    assert 'region_' not in grid and '[R' not in grid
-    assert all(glyph in grid for glyph in ('👑', '❌', '🔴'))
+    assert '[R' not in grid
+    assert all(glyph in grid for glyph in (' Q ', '×', '\x1b['))
 
 
 @pytest.mark.parametrize('encoding,term,expected', [
@@ -331,5 +332,5 @@ def test_debug_board_terminal_detection(monkeypatch, encoding, term, expected):
         patch.setenv('TERM', term)
         rendered = render_board(board)
         forced = render_board(board, use_emojis=not expected)
-    assert ('🔴' in rendered) == expected
-    assert ('🔴' in forced) == (not expected)
+    assert ('\x1b[' in rendered) == expected
+    assert ('\x1b[' in forced) == (not expected)

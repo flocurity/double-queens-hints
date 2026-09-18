@@ -64,7 +64,7 @@ def test_trace_logs_selected_or_all_deductions_without_duplicates(trace, verbose
     assert [c.kwargs.get('step') for c in details] == [None if verbose else 1] * len(expected)
     assert [c.kwargs.get('step') for c in logger.hint.call_args_list] == [None if verbose else 1] * len(expected)
     glyph = context.glyph_for('0')
-    assert all(glyph in entry['board'] for entry in boards)
+    assert all('\x1b[' in entry['board'] for entry in boards)
     selected_index = next(i for i, call in enumerate(details)
                           if call.kwargs['deduction'] == render_deduction(selected))
     selected_hints = logger.hint.call_args_list[selected_index].args[0]

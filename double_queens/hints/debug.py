@@ -3,15 +3,27 @@ from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from html import escape
+from io import StringIO
 import os
 import random
 import sys
 import unicodedata
 from types import MappingProxyType
 
+from rich.console import Console
+from rich.text import Text
+
 from ..board import Board, CellState, RegionId
 
 _COLORS = ("🔴", "🔵", "🟢", "🟡", "🟣", "🟠", "🟤", "⚫", "⚪", "🩶", "🩵")
+_BACKGROUNDS = ("#b94a48", "#3977b8", "#4f914c", "#c69b32", "#8759a6",
+                "#d47a38", "#795548", "#404040", "#bcbcbc", "#777777", "#4b9ca8")
+_GLYPH_COLORS = dict(zip(_COLORS, _BACKGROUNDS))
+
+
+def _darken(color: str, factor: float = 0.93) -> str:
+    return "#" + "".join(f"{round(int(color[i:i + 2], 16) * factor):02x}"
+                         for i in (1, 3, 5))
 
 # Newer hearts are drawn by the font but treated as narrow by VS Code's
 # older terminal width tables. Keep compatibility data out of puzzle logic.
@@ -55,6 +67,11 @@ class RegionPalette:
             self._mapping[region] = self.glyphs[len(self._mapping) % len(self.glyphs)]
         return self._mapping[region]
 
+    def color_for(self, region_id: RegionId | str) -> str:
+        """Background paired with the session's glyph, including custom palettes."""
+        glyph = self.glyph_for(region_id)
+        return _GLYPH_COLORS.get(glyph, _BACKGROUNDS[self.glyphs.index(glyph) % len(_BACKGROUNDS)])
+
     @property
     def mapping(self) -> Mapping[RegionId, str]:
         """Expose a read-only snapshot for diagnostics and structured logging."""
@@ -93,6 +110,9 @@ class DebugRenderContext:
 
     def glyph_for(self, region_id: RegionId | str) -> str:
         return self.palette.glyph_for(region_id)
+
+    def color_for(self, region_id: RegionId | str) -> str:
+        return self.palette.color_for(region_id)
 
     def display_region(self, region_id: RegionId | str) -> str:
         return self.glyph_for(region_id) if self.use_emojis else str(region_id)
@@ -168,7 +188,11 @@ def render_board(
     terminal_profile: str = 'auto', glyph_widths: Mapping[str, int] | None = None,
     context: DebugRenderContext | None = None,
 ) -> str:
-    """Render a compact terminal grid using calibrated glyph display widths."""
+    """Render colored three-column cells, or readable text when colors are disabled.
+
+    The legacy use_emojis switch selects colored rendering; hint glyphs remain
+    unchanged. ANSI text keeps this compatible with existing multiline logs.
+    """
     if context is not None:
         context.prepare(board.region_ids)
         use_emojis = context.use_emojis
@@ -177,20 +201,15 @@ def render_board(
     layout = _display_layout(terminal_profile, glyph_widths)
     if use_emojis is None:
         use_emojis = _supports_emojis()
-    visuals = {
-        region: context.glyph_for(region) if context is not None
-        else _COLORS[i % len(_COLORS)]
-        for i, region in enumerate(board.region_ids)
-    }
-
-    def symbol(region: str) -> str:
-        return visuals[region] if use_emojis else _name(region)
-
+    if use_emojis:
+        palette = context.palette if context is not None else RegionPalette(_COLORS)
+        palette.prepare(board.region_ids)
+        return _render_colored_board(board, palette, legend, layout)
     lines: list[str] = []
     if legend:
         lines += ["Color Region Legend", ""]
-        for region, emoji in visuals.items():
-            lines.append(f"- {emoji} = {_name(region)}" if use_emojis else f"- {_name(region)}")
+        for region in board.region_ids:
+            lines.append(f"- {_name(region)}")
         lines.append("")
     table = []
     summaries = []
@@ -199,30 +218,73 @@ def render_board(
         for cell in board.row(r):
             region = board.regions[r][cell.col]
             state = board.at(cell)
-            if use_emojis:
-                marker = {CellState.QUEEN: "👑", CellState.EXCLUDED: "❌",
-                          CellState.UNKNOWN: visuals[region]}[state]
-            else:
-                prefix = {CellState.QUEEN: "Q ", CellState.EXCLUDED: "X ",
-                          CellState.UNKNOWN: ""}[state]
-                marker = prefix + _name(region)
+            prefix = {CellState.QUEEN: "Q ", CellState.EXCLUDED: "X ",
+                      CellState.UNKNOWN: ""}[state]
+            marker = prefix + _name(region)
             row.append(marker)
         counts = Counter(board.regions[r][c.col] for c in board.queens(board.row(r)))
-        multiplier = "×" if use_emojis else "x"
-        summary = "  ".join(symbol(region) + (f" {multiplier}{count}" if count > 1 else "")
+        summary = "  ".join(_name(region) + (f" x{count}" if count > 1 else "")
                             for region, count in sorted(counts.items())) or "-"
         table.append(row)
         summaries.append(summary)
     headers = [str(c + 1) for c in range(board.size)]
     widths = [max(2, layout.width(headers[c]),
-                  *(layout.width(row[c]) + (0 if use_emojis else 1) for row in table))
+                  *(layout.width(row[c]) + 1 for row in table))
               for c in range(board.size)]
     row_width = max(2, len(str(board.size)))
 
     def grid(row: list[str]) -> str:
         return "".join(layout.pad(value, width) for value, width in zip(row, widths))
 
-    lines.append(" " * (row_width + 1) + grid(headers) + "|Queen(s)")
-    lines.extend(f"{r + 1:0{row_width}d} " + grid(row) + "|" + summary
+    lines.append(" " * (row_width + 1) + grid(headers) + "  Queen(s)")
+    lines.extend(f"{r + 1:0{row_width}d} " + grid(row) + "  " + summary
                  for r, (row, summary) in enumerate(zip(table, summaries)))
     return "\n".join(lines)
+
+
+def _render_colored_board(
+    board: Board, palette: RegionPalette, legend: bool, layout: _DisplayLayout,
+) -> str:
+    row_width = max(2, len(str(board.size)))
+    text = Text()
+    if legend:
+        text.append("Color Region Legend\n\n")
+        for region in board.region_ids:
+            text.append("   ", style=f"on {palette.color_for(region)}")
+            text.append(f" = {_name(region)}\n")
+        text.append("\n")
+    text.append(" " * (row_width + 1))
+    text.append("".join(f"{c + 1:^3}" for c in range(board.size)) + "  Queen(s)\n")
+    symbols = {CellState.UNKNOWN: " ", CellState.EXCLUDED: "×", CellState.QUEEN: "Q"}
+    for r in range(board.size):
+        text.append(f"{r + 1:0{row_width}d} ")
+        for cell in board.row(r):
+            color = palette.color_for(board.regions[r][cell.col])
+            if (r + cell.col) % 2 == 0:
+                color = _darken(color)
+            symbol = symbols[board.at(cell)]
+            width = layout.width(symbol)
+            if width > 3:
+                raise ValueError("Cell symbol cannot exceed three terminal columns")
+            left = (3 - width) // 2
+            text.append(" " * left + symbol + " " * (3 - width - left),
+                        style=f"bold white on {color}")
+        counts = Counter(board.regions[r][c.col] for c in board.queens(board.row(r)))
+        text.append("  ")
+        if not counts:
+            text.append("-")
+        for index, (region, count) in enumerate(sorted(counts.items())):
+            if index:
+                text.append("  ")
+            text.append(f" {_name(region)} ", style=f"bold white on {palette.color_for(region)}")
+            if count > 1:
+                text.append(f" ×{count}")
+        if r + 1 < board.size:
+            text.append("\n")
+    # Render into a string, never directly to stdout and never wrap board rows.
+    output = StringIO()
+    console = Console(file=output, force_terminal=True, color_system="truecolor", no_color=False,
+                      width=max(80, max(len(line) for line in text.plain.splitlines())),
+                      legacy_windows=False)
+    console.print(text, end="", soft_wrap=True)
+    return output.getvalue()

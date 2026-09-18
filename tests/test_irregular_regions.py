@@ -211,7 +211,7 @@ def test_render_irregular_board_without_legend(irregular_layout):
     widths = [4 if c in (queen.col, excluded.col) else 2 for c in range(10)]
     rows = []
     for line in text.splitlines()[1:]:
-        grid = line.split('|')[0][3:]
+        grid = line[3:3 + sum(widths)]
         offset = 0
         row = []
         for width in widths:
@@ -223,7 +223,7 @@ def test_render_irregular_board_without_legend(irregular_layout):
         for c in range(10):
             prefix = 'Q ' if Cell(r, c) == queen else 'X ' if Cell(r, c) == excluded else ''
             assert rows[r][c].strip() == prefix + irregular_layout.regions[r][c]
-    assert emojis.count('👑') == 1 and emojis.count('❌') == 1
+    assert emojis.count(' Q ') == 1 and emojis.count('×') == 1
     queen_row = text.splitlines()[queen.row + 1]
-    assert queen_row.split('|')[1] == 'A'
+    assert queen_row.endswith('  A')
     assert board.state == before

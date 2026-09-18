@@ -1,5 +1,7 @@
 """Stable randomized palettes shared by debug boards and human hints."""
 from types import MappingProxyType, SimpleNamespace
+from rich.console import Console
+from rich.text import Text
 
 import pytest
 
@@ -63,7 +65,8 @@ def test_repeated_board_rendering_with_one_context_preserves_colors():
     second = render_board(board, context=context)
     assert first == second
     assert dict(context.mapping) == mapping
-    assert all(context.glyph_for(region) in first for region in board.region_ids)
+    assert all(context.color_for(region).startswith('#') for region in board.region_ids)
+    assert '\x1b[' in first
 
 
 def test_board_and_all_region_hint_levels_share_one_palette_glyph():
@@ -77,7 +80,10 @@ def test_board_and_all_region_hint_levels_share_one_palette_glyph():
         render_hint(deduction, level, region_display=context.display_region)
         for level in range(1, 5)
     ]
-    assert glyph in rendered_board
+    text = Text.from_ansi(rendered_board)
+    # L1C2 uses the base shade of the same color associated with the hint glyph.
+    offset = len(text.plain.splitlines()[0]) + 1 + 3 + 3
+    assert text.get_style_at_offset(Console(), offset).bgcolor.name == context.color_for('region_0')
     assert hints[0] == f"Look at region {glyph}."
     assert hints[1].startswith(f"Region {glyph} still needs one queen")
     assert f"in region {glyph}" in hints[2]

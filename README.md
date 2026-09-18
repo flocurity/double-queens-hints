@@ -172,28 +172,25 @@ milestone. No later milestone is implemented here.
 
 ## Terminal alignment
 
-`render_board` keeps width estimation and padding in a single presentation
-helper. `terminal_profile="auto"` selects the VS Code profile when
-`TERM_PROGRAM=vscode`; that profile compensates for narrow 🩶 and 🩵 in the
-older terminal width table. Use `terminal_profile="unicode"` for saved
-Markdown or terminals with newer width tables. Two-digit row labels remain
-presentation-only.
+`render_board` returns an ANSI-colored string suitable for the existing logs.
+Each colored cell occupies three terminal columns: blank for unknown, `×`
+for excluded, and a bold `Q` for a queen. Region backgrounds alternate between their
+base color and a 0.93 darkening on a checkerboard. There are no grid separators;
+compact column numbers and zero-padded row labels remain presentation-only.
 
-Font metrics cannot be inferred perfectly from Unicode. Override measured
-glyph widths centrally for your setup, for example:
+`RegionPalette.color_for(region_id)` and `DebugRenderContext.color_for(region_id)`
+expose the background paired with the existing hint glyph. Seeded contexts
+remain deterministic, and every render in a context shares the same mapping.
+Without a context, the palette uses its fixed order. Hint glyphs and hint text
+are unchanged.
 
-```python
-render_board(board, use_emojis=True, terminal_profile="vscode",
-             glyph_widths={"🤍": 1})
-```
+The existing `use_emojis=True` override now explicitly selects colored cells.
+Automatic selection retains the existing terminal/encoding heuristic.
+`use_emojis=False` selects the uncolored text fallback, which retains region
+names and Q/X markers and can therefore be wider than three columns per cell.
+The optional region legend and per-row queen-region counts remain available.
 
-This adds one padding space for a white heart that advances one column on
-that terminal. Overrides support entire glyph sequences, not only individual
-characters. They also apply in the queen-region summary. Complex joined
-emoji may need an explicit override. Text mode remains available with
-`use_emojis=False`. No terminal settings are changed.
-
-The white heart in the alignment example comes from the test's temporary
-palette override; the normal palette contains ⚪, 🩶 and 🩵, not 🤍.
-Before removing wcwidth, the diagnostic reported `len=1, wcswidth=2` for each
-of 🔴 🔵 ⚪ 🤍 🩶 🩵 👑 ❌. Those numbers do not measure font appearance.
+Terminal profiles and `glyph_widths` overrides still support explicit width
+calibration, for example `glyph_widths={"×": 2}` if required by a terminal.
+Region emoji font metrics no longer affect the colored grid. No terminal
+settings are changed.
