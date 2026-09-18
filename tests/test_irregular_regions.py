@@ -210,7 +210,7 @@ def test_render_irregular_board_without_legend(irregular_layout):
     # Text cells retain their names and state prefixes in padded column slots.
     widths = [4 if c in (queen.col, excluded.col) else 2 for c in range(10)]
     rows = []
-    for line in text.splitlines()[1:]:
+    for line in text.splitlines()[1:11]:
         grid = line[3:3 + sum(widths)]
         offset = 0
         row = []

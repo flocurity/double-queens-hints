@@ -127,3 +127,60 @@ def test_context_reuses_existing_terminal_capability_detection(monkeypatch):
 def test_invalid_palette_configuration_is_rejected(kwargs):
     with pytest.raises(ValueError):
         RegionPalette.randomized(**kwargs)
+
+
+@pytest.mark.parametrize('similar,distinct', [
+    (('🔴', '🟤'), '🔵'), (('🔵', '🩵'), '🟡'),
+    (('🟡', '🟠'), '⚫'), (('⚫', '🩶'), '⚪'),
+])
+@pytest.mark.parametrize('seed', [1, 7, 42])
+def test_adjacent_regions_avoid_known_similar_colors(similar, distinct, seed):
+    # A-B-C chain: similar colors can both be used, but only on the ends.
+    board = Board(['ABC'] * 3)
+    context = DebugRenderContext.randomized(seed=seed, use_emojis=True,
+                                            glyphs=(*similar, distinct))
+    before = board.state
+    render_board(board, context=context)
+    assert context.glyph_for('B') == distinct
+    assert {context.glyph_for('A'), context.glyph_for('C')} == set(similar)
+    assert len(set(context.mapping.values())) == 3
+    assert board.state == before
+
+
+def test_diagonal_contact_does_not_create_a_color_restriction():
+    # A and C touch only diagonally, while B touches both orthogonally.
+    board = Board(['ABB', 'BCC', 'BCC'])
+    context = DebugRenderContext.randomized(seed=7, use_emojis=True,
+                                            glyphs=('🔴', '🟤', '🔵'))
+    render_board(board, context=context)
+    assert context.glyph_for('B') == '🔵'
+    assert {context.glyph_for('A'), context.glyph_for('C')} == {'🔴', '🟤'}
+
+
+def test_board_palette_is_seeded_stable_and_independent_of_cell_states():
+    regions = ['AABB', 'ACBB', 'ACDD', 'CCDD']
+    board = Board(regions)
+    changed = Board(regions, [[1, 0, 0, 0], [0]*4, [0]*4, [0]*4])
+    contexts = [DebugRenderContext.randomized(seed=seed, use_emojis=True)
+                for seed in (7, 7, 42)]
+    for context in contexts:
+        render_board(board, context=context)
+    assert contexts[0].mapping == contexts[1].mapping
+    assert contexts[0].mapping != contexts[2].mapping
+    mapping = dict(contexts[0].mapping)
+    render_board(changed, context=contexts[0])
+    assert contexts[0].mapping == mapping
+    fresh = DebugRenderContext.randomized(seed=7, use_emojis=True)
+    render_board(changed, context=fresh)
+    assert fresh.mapping == mapping
+    assert render_board(board, use_emojis=True) == render_board(board, use_emojis=True)
+
+
+def test_limited_palette_is_best_effort_and_existing_assignments_stay_fixed():
+    board = Board(['ABC'] * 3)
+    context = DebugRenderContext.randomized(seed=1, use_emojis=True, glyphs=('🔴', '🟤'))
+    previous = context.glyph_for('A')
+    first = render_board(board, context=context)
+    assert context.glyph_for('A') == previous
+    assert render_board(board, context=context) == first
+    assert set(context.mapping) == set('ABC')

@@ -10,6 +10,8 @@ logically forced a queen at L6C5. An AI assistant named GPTou initially failed
 to identify that deduction reliably. The queen was forced; the explanation
 apparently needed more structure.
 
+GPTou and I took that personally.
+
 That incident established the project's main design goal: logical hints must
 be deterministic, structured, explainable, replayable, and regression tested,
 rather than produced by opaque solving behavior. The original position is
@@ -181,8 +183,14 @@ compact column numbers and zero-padded row labels remain presentation-only.
 `RegionPalette.color_for(region_id)` and `DebugRenderContext.color_for(region_id)`
 expose the background paired with the existing hint glyph. Seeded contexts
 remain deterministic, and every render in a context shares the same mapping.
-Without a context, the palette uses its fixed order. Hint glyphs and hint text
-are unchanged.
+On the first colored render, orthogonal region borders guide assignment.
+RGB distances below 100 are treated as similar; unused contrasting colors are
+preferred, followed by improving swaps among new assignments. Seeded palette
+order breaks ties; without a context, the fixed palette order is used.
+This is a deterministic, best-effort contrast heuristic, not a guarantee for
+every palette, terminal, or type of color vision. Existing context assignments
+are never recolored. Render the board before requesting its colored hints so
+the palette can account for its geometry. Hint wording is unchanged.
 
 The existing `use_emojis=True` override now explicitly selects colored cells.
 Automatic selection retains the existing terminal/encoding heuristic.

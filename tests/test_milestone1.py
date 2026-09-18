@@ -221,10 +221,10 @@ def test_debug_board_dynamic_and_pure():
     before = board.state
     rendered = render_board(board, use_emojis=True)
     assert '10 11 12 13' in rendered.splitlines()[0]
-    assert rendered.splitlines()[-1].startswith('13 ')
+    assert rendered.splitlines()[13].startswith('13 ')
     assert "Color Region Legend" not in rendered
     assert not any(line.startswith("- ") for line in rendered.splitlines())
-    assert "Queen(s)" in rendered and "×2" in rendered
+    assert "Queen(s)" in rendered and "×2" not in rendered
     assert " Q " in rendered and "×" in rendered and "  -" in rendered
     assert board.state == before
 
@@ -305,7 +305,7 @@ def test_debug_board_text_mode():
     assert 'Q region_0' in rendered
     assert 'X region_1' in rendered
     assert 'region_2' in rendered
-    assert rendered.splitlines()[1].endswith('  region_0 x2')
+    assert rendered.splitlines()[1].endswith('  region_0  region_0')
 
 
 @debug_boards

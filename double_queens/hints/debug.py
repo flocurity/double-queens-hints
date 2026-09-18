@@ -1,5 +1,4 @@
 """Cosmetic region symbols never enter the reasoning model."""
-from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from html import escape
@@ -19,6 +18,17 @@ _COLORS = ("🔴", "🔵", "🟢", "🟡", "🟣", "🟠", "🟤", "⚫", "⚪",
 _BACKGROUNDS = ("#b94a48", "#3977b8", "#4f914c", "#c69b32", "#8759a6",
                 "#d47a38", "#795548", "#404040", "#bcbcbc", "#777777", "#4b9ca8")
 _GLYPH_COLORS = dict(zip(_COLORS, _BACKGROUNDS))
+
+
+def _color_distance(first: str, second: str) -> int:
+    """Squared RGB distance; below 100² is treated as similar for this palette.
+
+    A deterministic cosmetic heuristic, not a guarantee for every display or
+    type of color vision. In particular it separates our brown/red, blue/teal,
+    yellow/orange and neighboring gray shades.
+    """
+    return sum((int(first[i:i + 2], 16) - int(second[i:i + 2], 16)) ** 2
+               for i in (1, 3, 5))
 
 
 def _darken(color: str, factor: float = 0.93) -> str:
@@ -64,13 +74,68 @@ class RegionPalette:
     def glyph_for(self, region_id: RegionId | str) -> str:
         region = RegionId(region_id)
         if region not in self._mapping:
-            self._mapping[region] = self.glyphs[len(self._mapping) % len(self.glyphs)]
+            unused = [g for g in self.glyphs if g not in self._mapping.values()]
+            self._mapping[region] = unused[0] if unused else self.glyphs[len(self._mapping) % len(self.glyphs)]
         return self._mapping[region]
 
     def color_for(self, region_id: RegionId | str) -> str:
         """Background paired with the session's glyph, including custom palettes."""
         glyph = self.glyph_for(region_id)
+        return self._color(glyph)
+
+    def _color(self, glyph: str) -> str:
         return _GLYPH_COLORS.get(glyph, _BACKGROUNDS[self.glyphs.index(glyph) % len(_BACKGROUNDS)])
+
+    def prepare_board(self, board: Board) -> None:
+        """Assign new regions using orthogonal borders, preserving published colors.
+
+        Seeded glyph order breaks ties. Prefer unused contrasting colors; when
+        none fit, maximize separation. Improving swaps among newly assigned
+        regions reduce conflicts without changing earlier boards in a trace.
+        This is bounded presentation work, independent of queen states.
+        """
+        if all(region in self._mapping for region in board.region_ids):
+            return
+        neighbors = {r: set() for r in board.region_ids}
+        for r in range(board.size):
+            for c in range(board.size):
+                region = board.regions[r][c]
+                for nr, nc in ((r + 1, c), (r, c + 1)):
+                    if nr < board.size and nc < board.size:
+                        other = board.regions[nr][nc]
+                        if other != region:
+                            neighbors[region].add(other)
+                            neighbors[other].add(region)
+        new = sorted((r for r in neighbors if r not in self._mapping),
+                     key=lambda r: (-len(neighbors[r]), r))
+        for region in new:
+            available = [g for g in self.glyphs if g not in self._mapping.values()] or list(self.glyphs)
+            adjacent = [self.color_for(n) for n in sorted(neighbors[region]) if n in self._mapping]
+            distances = {g: min((_color_distance(self._color(g), c) for c in adjacent),
+                               default=10000) for g in available}
+            self._mapping[region] = next((g for g in available if distances[g] >= 10000),
+                                         max(available, key=distances.get))
+        edges = [(a, b) for a in sorted(neighbors) for b in sorted(neighbors[a]) if a < b]
+
+        def conflicts() -> int:
+            return sum(_color_distance(self.color_for(a), self.color_for(b)) < 10000
+                       for a, b in edges)
+
+        score = conflicts()
+        while score:
+            improved = False
+            for i, a in enumerate(new):
+                for b in new[i + 1:]:
+                    self._mapping[a], self._mapping[b] = self._mapping[b], self._mapping[a]
+                    candidate = conflicts()
+                    if candidate < score:
+                        score, improved = candidate, True
+                        break
+                    self._mapping[a], self._mapping[b] = self._mapping[b], self._mapping[a]
+                if improved:
+                    break
+            if not improved:
+                break
 
     @property
     def mapping(self) -> Mapping[RegionId, str]:
@@ -194,8 +259,9 @@ def render_board(
     unchanged. ANSI text keeps this compatible with existing multiline logs.
     """
     if context is not None:
-        context.prepare(board.region_ids)
         use_emojis = context.use_emojis
+        if not use_emojis:
+            context.prepare(board.region_ids)
         terminal_profile = context.terminal_profile
         glyph_widths = context.glyph_widths
     layout = _display_layout(terminal_profile, glyph_widths)
@@ -203,7 +269,7 @@ def render_board(
         use_emojis = _supports_emojis()
     if use_emojis:
         palette = context.palette if context is not None else RegionPalette(_COLORS)
-        palette.prepare(board.region_ids)
+        palette.prepare_board(board)
         return _render_colored_board(board, palette, legend, layout)
     lines: list[str] = []
     if legend:
@@ -222,9 +288,8 @@ def render_board(
                       CellState.UNKNOWN: ""}[state]
             marker = prefix + _name(region)
             row.append(marker)
-        counts = Counter(board.regions[r][c.col] for c in board.queens(board.row(r)))
-        summary = "  ".join(_name(region) + (f" x{count}" if count > 1 else "")
-                            for region, count in sorted(counts.items())) or "-"
+        summary = "  ".join(_name(board.regions[r][c.col])
+                            for c in board.queens(board.row(r))) or "-"
         table.append(row)
         summaries.append(summary)
     headers = [str(c + 1) for c in range(board.size)]
@@ -239,6 +304,12 @@ def render_board(
     lines.append(" " * (row_width + 1) + grid(headers) + "  Queen(s)")
     lines.extend(f"{r + 1:0{row_width}d} " + grid(row) + "  " + summary
                  for r, (row, summary) in enumerate(zip(table, summaries)))
+    columns = [board.queens(board.column(c)) for c in range(board.size)]
+    for slot in range(2):
+        lines.append("")
+        labels = [_name(board.regions[queens[slot].row][c]) if slot < len(queens) else ""
+                  for c, queens in enumerate(columns)]
+        lines.append(" " * (row_width + 1) + grid(labels))
     return "\n".join(lines)
 
 
@@ -247,6 +318,17 @@ def _render_colored_board(
 ) -> str:
     row_width = max(2, len(str(board.size)))
     text = Text()
+
+    def badge(region: RegionId) -> None:
+        label = _name(region)
+        if layout.width(label) > 3:
+            label = palette.glyph_for(region)
+        width = layout.width(label)
+        if width > 3:
+            raise ValueError("Region badge label or glyph must fit three terminal columns")
+        left = (3 - width) // 2
+        text.append(" " * left + label + " " * (3 - width - left),
+                    style=f"bold white on {palette.color_for(region)}")
     if legend:
         text.append("Color Region Legend\n\n")
         for region in board.region_ids:
@@ -269,18 +351,24 @@ def _render_colored_board(
             left = (3 - width) // 2
             text.append(" " * left + symbol + " " * (3 - width - left),
                         style=f"bold white on {color}")
-        counts = Counter(board.regions[r][c.col] for c in board.queens(board.row(r)))
+        queens = board.queens(board.row(r))
         text.append("  ")
-        if not counts:
+        if not queens:
             text.append("-")
-        for index, (region, count) in enumerate(sorted(counts.items())):
+        for index, queen in enumerate(queens):
             if index:
                 text.append("  ")
-            text.append(f" {_name(region)} ", style=f"bold white on {palette.color_for(region)}")
-            if count > 1:
-                text.append(f" ×{count}")
-        if r + 1 < board.size:
-            text.append("\n")
+            badge(board.regions[r][queen.col])
+        text.append("\n")
+    indent = " " * (row_width + 1)
+    columns = [board.queens(board.column(c)) for c in range(board.size)]
+    for slot in range(2):
+        text.append(("\n" if slot == 0 else "\n\n") + indent)
+        for c, queens in enumerate(columns):
+            if slot < len(queens):
+                badge(board.regions[queens[slot].row][c])
+            else:
+                text.append("   ")
     # Render into a string, never directly to stdout and never wrap board rows.
     output = StringIO()
     console = Console(file=output, force_terminal=True, color_system="truecolor", no_color=False,
