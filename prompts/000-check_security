@@ -1,0 +1,121 @@
+Perform a security review of the current repository.
+
+## Operating mode
+
+This is a **review-first, read-only security audit**.
+
+Do not modify production code, tests, documentation, dependencies, lockfiles, configuration, git state, commits, tags, generated files, or repository contents during the review.
+
+Do not install new tools or dependencies without asking first.
+
+You may run existing tests and non-mutating static/security checks that are already available in the repository or environment. Before running a command, ensure that it is not expected to modify repository state. If a useful check would require installation or mutation, report that fact instead of performing it.
+
+## Review methodology
+
+Inspect the **actual implementation**, not just filenames, comments, tests, or intended architecture.
+
+Trace relevant data flows from **source → validation/transformation → sink**.
+
+For every suspected vulnerability, determine whether attacker-controlled or otherwise untrusted data can realistically reach the unsafe operation **in the current application**.
+
+Do not report a dangerous API, primitive, or theoretical weakness as an exploitable vulnerability merely because it exists. Establish reachability and realistic preconditions first.
+
+Clearly distinguish:
+
+1. **Confirmed vulnerability** — reachable under the project's current trust model and implementation.
+2. **Hardening opportunity** — defensive improvement with limited or no current exploitability.
+3. **Future trust-boundary risk** — safe under current internal/trusted inputs but potentially vulnerable if those inputs later become externally controlled.
+
+If evidence is insufficient to establish exploitability, say so explicitly.
+
+Do not inflate severity based on hypothetical future architecture.
+
+## Areas to inspect
+
+Review, where applicable:
+
+- handling of untrusted or malformed input;
+- parsing and validation boundaries;
+- file/path handling and path traversal;
+- subprocess, shell, command execution, and argument construction;
+- dynamic execution and unsafe deserialization;
+- terminal output and ANSI/control-sequence injection, especially where existing or future values may originate outside trusted source code;
+- dependency usage and dangerous APIs;
+- temporary files, filesystem permissions, symlink-related issues, and race conditions where applicable;
+- exception handling that could hide unsafe states or cause fail-open behavior;
+- denial-of-service risks from unexpectedly large or adversarial boards, combinatorial reasoning, local-placement enumeration, recursion, loops, memory growth, or other potentially unbounded work;
+- integer/index/bounds assumptions involving board dimensions, region identifiers, cell counts, coordinates, and similar values;
+- assumptions that are safe only because boards are currently constructed internally;
+- leakage of local paths, environment variables, secrets, tokens, credentials, stack traces, or sensitive runtime information through logs/debug output;
+- use of randomness where determinism is expected, distinguishing cosmetic randomness from security-sensitive randomness;
+- trust-boundary issues introduced by the debug/TUI renderer;
+- unsafe interactions between parser/model/rendering layers;
+- assertions or validation that disappear or behave differently in production/runtime configurations.
+
+Also inspect `pyproject.toml` and the locked dependency set for security-relevant attack surface and risky dependency usage, but do not upgrade or change dependencies as part of this review.
+
+If vulnerability metadata for dependencies cannot be reliably checked with tools already available in the environment, state that limitation rather than guessing whether a dependency version is vulnerable.
+
+## Architectural constraint
+
+The reasoning engine must remain **deterministic and local**.
+
+Security recommendations must preserve this architectural rule and must not introduce hidden solving, brute-force search, external services, network-dependent reasoning, or other behavior that changes the intended reasoning model.
+
+## Findings
+
+For each finding, report:
+
+- **ID**;
+- **severity:** Critical / High / Medium / Low / Informational;
+- **classification:** Confirmed vulnerability / Hardening opportunity / Future trust-boundary risk;
+- **CWE**, when confidently applicable;
+- **exact file and relevant function/class/code location**;
+- **source of untrusted data**, if any;
+- **sink or security-sensitive operation**;
+- **concrete vulnerable or unsafe behavior**;
+- **evidence/data-flow explanation** showing why the issue is or is not currently reachable;
+- **realistic exploitation preconditions**;
+- **likely impact**;
+- **recommended remediation**;
+- **architectural considerations**, especially regarding deterministic/local reasoning;
+- **status:** exists today / latent risk if trust assumptions change.
+
+Use exact line numbers when practical, but also name the relevant symbol/function because line numbers may change.
+
+Do not claim exploitability unless you can describe a realistic path from attacker-controlled input to impact.
+
+Do not include generic security advice that is not tied to code or architecture actually present in the repository.
+
+## Validation
+
+Run the existing test suite if doing so is non-mutating.
+
+Run appropriate non-mutating security/static checks already available in the repository or environment when useful.
+
+Record:
+
+- commands executed;
+- relevant results;
+- checks that could not be performed;
+- important limitations of the review.
+
+Do not create proof-of-concept files, modify fixtures, or persist malicious payloads in the repository.
+
+If validating a finding dynamically could cause destructive behavior, execute arbitrary commands, access the network unexpectedly, expose secrets, or modify external state, do not perform that validation. Explain what would need to be tested instead.
+
+## Final report
+
+End with these sections:
+
+1. **Executive summary**
+2. **Confirmed security findings**
+3. **Hardening recommendations**
+4. **Future trust boundaries to protect**, especially as the project evolves toward externally loaded/generated boards and an interactive TUI
+5. **Dependency/security-tooling observations**
+6. **Review limitations**
+7. **Proposed remediation order**
+
+For the remediation order, prioritize based on demonstrated exploitability, impact, reachability, and likelihood—not merely on the presence of dangerous primitives.
+
+Do not implement any fixes yet. I want to review and approve the findings first.
